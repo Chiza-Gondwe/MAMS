@@ -199,3 +199,43 @@ CREATE TABLE announcement_media (
         FOREIGN KEY (announcement_id) REFERENCES announcement (id) ON DELETE CASCADE ON UPDATE CASCADE,
     INDEX idx_media_announcement (announcement_id)
 );
+
+-- ============================================================
+-- 11. SECTION
+-- Sub-group specific to CHURCH organisations.
+-- A section has a name, description and a designated leader.
+-- ============================================================
+CREATE TABLE section (
+    id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    org_id      INT UNSIGNED NOT NULL,
+    name        VARCHAR(150) NOT NULL,
+    description VARCHAR(255),
+    leader_id   INT UNSIGNED,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_section_org
+        FOREIGN KEY (org_id)    REFERENCES organisation (id) ON DELETE CASCADE  ON UPDATE CASCADE,
+    CONSTRAINT fk_section_leader
+        FOREIGN KEY (leader_id) REFERENCES member       (id) ON DELETE SET NULL ON UPDATE CASCADE,
+    INDEX idx_section_org    (org_id),
+    INDEX idx_section_leader (leader_id)
+);
+
+-- ============================================================
+-- 12. MEMBER_SECTION
+-- Linking table — a member can belong to multiple sections.
+-- Specific to CHURCH organisations.
+-- ============================================================
+CREATE TABLE member_section (
+    id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    member_id   INT UNSIGNED NOT NULL,
+    section_id  INT UNSIGNED NOT NULL,
+    joined_date DATE         NOT NULL DEFAULT (CURRENT_DATE),
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_member_section (member_id, section_id),
+    CONSTRAINT fk_ms_member
+        FOREIGN KEY (member_id)  REFERENCES member  (id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_ms_section
+        FOREIGN KEY (section_id) REFERENCES section (id) ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_ms_member  (member_id),
+    INDEX idx_ms_section (section_id)
+);

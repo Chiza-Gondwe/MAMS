@@ -16,19 +16,24 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
 from members.views import MemberViewSet
+from attendance.views import AttendanceSessionViewSet, AttendanceRecordViewSet
 
 router = DefaultRouter()
 router.register(r'members', MemberViewSet)
+router.register(r'attendance/sessions', AttendanceSessionViewSet)
+router.register(r'attendance/records', AttendanceRecordViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/', include(router.urls)),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

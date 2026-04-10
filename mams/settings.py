@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-yk@hg90-k#-ft0-=rlxdo#z!t217q*q)$7ea&)-ojzdc1jk!l4
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'members',
     'attendance',
+    'announcements',
 ]
 
 REST_FRAMEWORK = {

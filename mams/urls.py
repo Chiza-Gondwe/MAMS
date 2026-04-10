@@ -25,11 +25,13 @@ from rest_framework_simplejwt.views import (
 )
 from members.views import MemberViewSet
 from attendance.views import AttendanceSessionViewSet, AttendanceRecordViewSet
+from announcements.views import AnnouncementViewSet
 
 router = DefaultRouter()
 router.register(r'members', MemberViewSet)
 router.register(r'attendance/sessions', AttendanceSessionViewSet)
 router.register(r'attendance/records', AttendanceRecordViewSet)
+router.register(r'announcements', AnnouncementViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

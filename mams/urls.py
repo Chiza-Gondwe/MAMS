@@ -24,7 +24,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
-from members.views import MemberViewSet
+from members.views import MemberViewSet, register_member
 from attendance.views import AttendanceSessionViewSet, AttendanceRecordViewSet
 from announcements.views import AnnouncementViewSet
 
@@ -42,5 +42,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/register/', register_member, name='register_member'),
     path('api/', include(router.urls)),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

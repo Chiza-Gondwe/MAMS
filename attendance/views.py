@@ -1,6 +1,5 @@
 import qrcode
 import io
-import base64
 from django.core.files.base import ContentFile
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -17,7 +16,6 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         session = serializer.save()
-        # Auto-generate QR code when session is created
         qr_data = f"MAMS-SESSION-{session.id}"
         qr = qrcode.make(qr_data)
         buffer = io.BytesIO()
@@ -38,15 +36,20 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         except Member.DoesNotExist:
             return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        has_attended_before = AttendanceRecord.objects.filter(member=member).exists()
+        is_first = not has_attended_before
+
         record, created = AttendanceRecord.objects.get_or_create(
             session=session,
-            member=member
+            member=member,
+            defaults={'is_first_visit': is_first}
         )
 
         if not created:
             return Response({'message': 'Attendance already recorded'}, status=status.HTTP_200_OK)
 
-        return Response({'message': f'Attendance recorded for {member}'}, status=status.HTTP_201_CREATED)
+        msg = f'First visit recorded for {member}' if is_first else f'Attendance recorded for {member}'
+        return Response({'message': msg, 'is_first_visit': is_first}, status=status.HTTP_201_CREATED)
 
 
 class AttendanceRecordViewSet(viewsets.ModelViewSet):

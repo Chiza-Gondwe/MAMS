@@ -21,6 +21,7 @@ class AttendanceRecord(models.Model):
     session = models.ForeignKey(AttendanceSession, on_delete=models.CASCADE, related_name='records')
     member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='attendance')
     scanned_at = models.DateTimeField(auto_now_add=True)
+    is_first_visit = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('session', 'member')

@@ -8,11 +8,18 @@ from rest_framework.permissions import IsAuthenticated
 from .models import AttendanceSession, AttendanceRecord
 from .serializers import AttendanceSessionSerializer, AttendanceRecordSerializer
 from members.models import Member
+from members.permissions import IsAdmin, IsMember, IsPTA
 
 class AttendanceSessionViewSet(viewsets.ModelViewSet):
     queryset = AttendanceSession.objects.all()
     serializer_class = AttendanceSessionSerializer
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        if self.action == 'scan':
+            return [IsMember()]
+        return [IsAdmin()]
 
     def perform_create(self, serializer):
         session = serializer.save()
@@ -55,4 +62,8 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 class AttendanceRecordViewSet(viewsets.ModelViewSet):
     queryset = AttendanceRecord.objects.all()
     serializer_class = AttendanceRecordSerializer
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [IsAdmin()]

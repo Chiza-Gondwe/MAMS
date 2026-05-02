@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 class Member(models.Model):
     ROLE_CHOICES = [
@@ -12,6 +13,7 @@ class Member(models.Model):
         ('inactive', 'Inactive'),
     ]
 
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='member_profile')
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)

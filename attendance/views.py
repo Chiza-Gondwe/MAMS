@@ -5,6 +5,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import APIException
 from .models import AttendanceSession, AttendanceRecord
 from .serializers import AttendanceSessionSerializer, AttendanceRecordSerializer
 from members.models import Member
@@ -23,12 +24,16 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         session = serializer.save()
-        qr_data = f"MAMS-SESSION-{session.id}"
-        qr = qrcode.make(qr_data)
-        buffer = io.BytesIO()
-        qr.save(buffer, format='PNG')
-        file_name = f"session_{session.id}.png"
-        session.qr_code.save(file_name, ContentFile(buffer.getvalue()), save=True)
+        try:
+            qr_data = f"MAMS-SESSION-{session.id}"
+            qr = qrcode.make(qr_data)
+            buffer = io.BytesIO()
+            qr.save(buffer, format='PNG')
+            file_name = f"session_{session.id}.png"
+            session.qr_code.save(file_name, ContentFile(buffer.getvalue()), save=True)
+        except Exception as e:
+            session.delete()
+            raise APIException(f"QR code generation failed: {str(e)}")
 
     @action(detail=True, methods=['post'], url_path='scan')
     def scan(self, request, pk=None):

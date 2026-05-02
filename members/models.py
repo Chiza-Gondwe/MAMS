@@ -15,9 +15,9 @@ class Member(models.Model):
     ]
 
     phone_regex = RegexValidator(
-        regex=r'^(09|07)\d{8}$',
-        message="Phone number must be in Zambian format: 09XXXXXXXX or 07XXXXXXXX"
-    )
+    regex=r'^(\+?260|0)(9[5-9]|7[5-9]|5[0-9])\d{7}$',
+    message="Enter a valid Zambian phone number e.g. 0971234567, 0551234567 or +260971234567"
+)
 
     user = models.OneToOneField(
         User,

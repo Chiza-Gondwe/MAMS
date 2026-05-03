@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import APIException
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import AttendanceSession, AttendanceRecord
 from .serializers import AttendanceSessionSerializer, AttendanceRecordSerializer
 from members.models import Member
@@ -48,6 +49,9 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         except Member.DoesNotExist:
             return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        if member.status != 'active':
+            return Response({'error': 'Inactive member cannot check in'}, status=status.HTTP_403_FORBIDDEN)
+
         has_attended_before = AttendanceRecord.objects.filter(member=member).exists()
         is_first = not has_attended_before
 
@@ -67,6 +71,8 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
 class AttendanceRecordViewSet(viewsets.ModelViewSet):
     queryset = AttendanceRecord.objects.all()
     serializer_class = AttendanceRecordSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['session', 'member']
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

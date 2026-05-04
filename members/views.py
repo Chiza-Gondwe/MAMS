@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from .models import Member
-from .serializers import MemberSerializer
+from .serializers import MemberSerializer, RegisterMemberSerializer
 from .permissions import IsAdmin, IsMember
 
 class MemberViewSet(viewsets.ModelViewSet):
@@ -18,11 +18,11 @@ class MemberViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_member(request):
-    serializer = MemberSerializer(data=request.data)
+    serializer = RegisterMemberSerializer(data=request.data)
     if serializer.is_valid():
-        serializer.save()
+        member = serializer.save()
         return Response({
             'message': 'Registration successful. Welcome to MAMS.',
-            'member': serializer.data
+            'member': MemberSerializer(member).data
         }, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

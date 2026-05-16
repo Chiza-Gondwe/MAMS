@@ -39,15 +39,23 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='scan')
     def scan(self, request, pk=None):
         session = self.get_object()
+        member = None
+        requester_profile = getattr(request.user, 'member_profile', None)
+
         member_id = request.data.get('member_id')
+        if member_id:
+            if requester_profile and requester_profile.role == 'admin':
+                try:
+                    member = Member.objects.get(id=member_id)
+                except Member.DoesNotExist:
+                    return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                return Response({'error': 'Only admins can specify a member_id'}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            member = requester_profile
 
-        if not member_id:
-            return Response({'error': 'member_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            member = Member.objects.get(id=member_id)
-        except Member.DoesNotExist:
-            return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+        if not member:
+            return Response({'error': 'Could not determine member'}, status=status.HTTP_400_BAD_REQUEST)
 
         if member.status != 'active':
             return Response({'error': 'Inactive member cannot check in'}, status=status.HTTP_403_FORBIDDEN)

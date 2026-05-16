@@ -7,8 +7,22 @@ from .serializers import MemberSerializer, RegisterMemberSerializer
 from .permissions import IsAdmin, IsMember
 
 class MemberViewSet(viewsets.ModelViewSet):
-    queryset = Member.objects.all()
     serializer_class = MemberSerializer
+
+    def get_queryset(self):
+        queryset = Member.objects.all()
+        user = self.request.user
+        
+        if not user.is_authenticated:
+            return queryset.none()
+            
+        profile = getattr(user, 'member_profile', None)
+        if not profile:
+            return queryset.none()
+            
+        if profile.role in ['admin', 'pta']:
+            return queryset
+        return queryset.filter(id=profile.id)
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

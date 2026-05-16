@@ -7,6 +7,8 @@ class MemberSerializer(serializers.ModelSerializer):
         model = Member
         fields = '__all__'
 
+from django.db import transaction
+
 class RegisterMemberSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
 
@@ -19,10 +21,11 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop('password')
-        user = User.objects.create_user(
-            username=validated_data['email'],
-            email=validated_data['email'],
-            password=password
-        )
-        member = Member.objects.create(user=user, **validated_data)
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=validated_data['email'],
+                email=validated_data['email'],
+                password=password
+            )
+            member = Member.objects.create(user=user, **validated_data)
         return member

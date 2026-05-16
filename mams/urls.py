@@ -29,10 +29,10 @@ from attendance.views import AttendanceSessionViewSet, AttendanceRecordViewSet
 from announcements.views import AnnouncementViewSet
 
 router = DefaultRouter()
-router.register(r'members', MemberViewSet)
+router.register(r'members', MemberViewSet, basename='member')
 router.register(r'attendance/sessions', AttendanceSessionViewSet)
 router.register(r'attendance/records', AttendanceRecordViewSet)
-router.register(r'announcements', AnnouncementViewSet)
+router.register(r'announcements', AnnouncementViewSet, basename='announcement')
 
 def home(request):
     return HttpResponse("MAMS API is running")

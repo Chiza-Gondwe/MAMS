@@ -1,0 +1,26 @@
+/* index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#F9FAFB] text-slate-600 antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-sky-800 hover:bg-sky-900 text-white px-4 py-2 rounded-md transition-all duration-150 text-sm font-medium;
+  }
+  .btn-secondary {
+    @apply border border-slate-200 hover:border-slate-300 text-slate-600 px-4 py-2 rounded-md transition-all duration-150 text-sm;
+  }
+  .input-search {
+    @apply w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300 transition-colors;
+  }
+  .select-filter {
+    @apply px-3 py-1.5 border border-slate-200 rounded-md text-sm text-slate-600 bg-white focus:outline-none focus:border-sky-300;
+  }
+}

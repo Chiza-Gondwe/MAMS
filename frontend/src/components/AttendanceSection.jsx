@@ -2,8 +2,11 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { formatDateTime } from '../utils';
-import { QrCode, Plus, CheckCircle, X, Loader, RefreshCw, AlertCircle } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { QrCode, Plus, CheckCircle, X, Loader, RefreshCw, AlertCircle, Download } from 'lucide-react';
+import { LineChart, Line, Tooltip, ResponsiveContainer } from 'recharts';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Sample trend data - replace with real API data
 const trendData = [
@@ -28,10 +31,60 @@ export default function AttendanceSection() {
   const [createLoading, setCreateLoading] = useState(false);
   const [scanSuccess, setScanSuccess] = useState(null);
   const [selectedSessionForQR, setSelectedSessionForQR] = useState(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
-  const loadData = async () => {
-    setLoading(true);
-    setError(null);
+  const exportToExcel = () => {
+    const exportData = records.map((r, index) => ({
+      '#': index + 1,
+      'Member': r.member_name || `Member #${r.member_id}`,
+      'Event': r.event_title || 'Service',
+      'Time': formatDateTime(r.checked_in_at),
+      'Status': 'Attended'
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
+    XLSX.writeFile(workbook, "MAMS_Attendance_Export.xlsx");
+    setShowExportMenu(false);
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("MAMS Attendance Export", 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+    
+    const tableColumn = ["#", "Member", "Event", "Time", "Status"];
+    const tableRows = [];
+    
+    records.forEach((r, index) => {
+      tableRows.push([
+        index + 1,
+        r.member_name || `Member #${r.member_id}`,
+        r.event_title || 'Service',
+        formatDateTime(r.checked_in_at),
+        'Attended'
+      ]);
+    });
+    
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 35,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [8, 145, 178] }
+    });
+    
+    doc.save("MAMS_Attendance_Export.pdf");
+    setShowExportMenu(false);
+  };
+
+  const loadData = async (isRefresh = false) => {
+    if (isRefresh) {
+      setLoading(true);
+    }
     try {
       const [sessionsData, recordsData] = await Promise.all([
         api.getSessions(),
@@ -39,6 +92,7 @@ export default function AttendanceSection() {
       ]);
       setSessions(sessionsData.results || []);
       setRecords(recordsData.results || []);
+      setError(null);
     } catch (err) {
       console.error('Failed to load attendance data:', err);
       setError(err.message || 'Failed to load attendance data');
@@ -48,7 +102,10 @@ export default function AttendanceSection() {
   };
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => {
+      loadData(false);
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleCreateSession = async () => {
@@ -127,6 +184,31 @@ export default function AttendanceSection() {
           <p className="text-xs text-slate-400 mt-0.5">Track check-ins and generate QR codes</p>
         </div>
         <div className="flex gap-2">
+          <div className="relative">
+            <button 
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="text-sm text-sky-700 hover:text-sky-800 flex items-center gap-1.5 transition-colors border border-sky-200 px-2 py-1 rounded-md bg-sky-50"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 shadow-lg rounded-md py-1 z-10">
+                <button 
+                  onClick={exportToExcel}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Export to Excel
+                </button>
+                <button 
+                  onClick={exportToPDF}
+                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Export to PDF
+                </button>
+              </div>
+            )}
+          </div>
           <button 
             onClick={() => setShowScanModal(true)} 
             className="text-sm text-sky-700 hover:text-sky-800 flex items-center gap-1.5 transition-colors"
@@ -229,10 +311,10 @@ export default function AttendanceSection() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {records.slice(0, 4).map(rec => (
-              <tr key={rec.id} className="hover:bg-slate-50/50 transition-colors">
-                <td className="py-2 text-sm text-slate-600">{rec.member_name || `Member #${rec.member_id}`}</td>
-                <td className="py-2 text-sm text-slate-600">{rec.event_title || 'Service'}</td>
+            {records.slice(0, 4).map((rec, index) => (
+              <tr key={rec.id} className="hover:bg-slate-100 transition-colors even:bg-slate-50/70">
+                <td className="py-2 px-2 text-sm text-slate-600">#{index + 1} - {rec.member_name || `Member #${rec.member_id}`}</td>
+                <td className="py-2 px-2 text-sm text-slate-600">{rec.event_title || 'Service'}</td>
                 <td className="py-2 text-sm text-slate-500">{formatDateTime(rec.checked_in_at)}</td>
                 <td className="py-2">
                   <CheckCircle className="w-3.5 h-3.5 text-green-600" />

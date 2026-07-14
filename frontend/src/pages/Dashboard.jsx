@@ -11,7 +11,6 @@ import { api } from '../api';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ totalMembers: 0, activeMembers: 0, attendanceRate: 78, pendingAnnouncements: 3 });
-  const [globalSearch, setGlobalSearch] = useState('');
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -21,11 +20,15 @@ export default function Dashboard() {
     fetchStats();
   }, []);
 
+  const handleSearch = (query) => {
+    console.log('Search query:', query);
+  };
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-auto">
-        <Topbar onSearch={setGlobalSearch} />
+        <Topbar onSearch={handleSearch} />
         <main className="p-6">
           <OverviewMetrics stats={stats} />
           <Routes>

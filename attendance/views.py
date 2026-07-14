@@ -1,3 +1,4 @@
+from mams.mixins import BaseMultiTenantViewSet
 import qrcode
 import io
 from django.core.files.base import ContentFile
@@ -10,11 +11,16 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import AttendanceSession, AttendanceRecord
 from .serializers import AttendanceSessionSerializer, AttendanceRecordSerializer
 from members.models import Member
-from members.permissions import IsAdmin, IsMember, IsPTA
+from members.permissions import IsAdmin, IsMember
 
-class AttendanceSessionViewSet(viewsets.ModelViewSet):
-    queryset = AttendanceSession.objects.all()
+class AttendanceSessionViewSet(BaseMultiTenantViewSet):
     serializer_class = AttendanceSessionSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated or not hasattr(user, 'member_profile'):
+            return AttendanceSession.objects.none()
+        return AttendanceSession.objects.filter(organization=user.member_profile.organization).order_by('-date')
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
@@ -24,9 +30,10 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         return [IsAdmin()]
 
     def perform_create(self, serializer):
-        session = serializer.save()
+        session = serializer.save(organization=self.request.user.member_profile.organization)
         try:
-            qr_data = f"MAMS-SESSION-{session.id}"
+            # Generate a clickable URL instead of raw text
+            qr_data = f"http://127.0.0.1:3000/scan/{session.id}"
             qr = qrcode.make(qr_data)
             buffer = io.BytesIO()
             qr.save(buffer, format='PNG')
@@ -76,11 +83,24 @@ class AttendanceSessionViewSet(viewsets.ModelViewSet):
         return Response({'message': msg, 'is_first_visit': is_first}, status=status.HTTP_201_CREATED)
 
 
-class AttendanceRecordViewSet(viewsets.ModelViewSet):
-    queryset = AttendanceRecord.objects.all()
+class AttendanceRecordViewSet(BaseMultiTenantViewSet):
     serializer_class = AttendanceRecordSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['session', 'member']
+
+    def get_queryset(self):
+        queryset = AttendanceRecord.objects.all().order_by('-scanned_at')
+        user = self.request.user
+        if not user.is_authenticated:
+            return queryset.none()
+            
+        profile = getattr(user, 'member_profile', None)
+        if not profile:
+            return queryset.none()
+            
+        if profile.role in ['superadmin', 'admin', 'section_leader', 'group_leader']:
+            return queryset
+        return queryset.filter(member=profile)
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

@@ -2,6 +2,7 @@ from django.db import models
 from members.models import Member
 
 class AttendanceSession(models.Model):
+    organization = models.ForeignKey('church_profile.Organization', on_delete=models.CASCADE, related_name='attendance_sessions', null=True, blank=True)
     SESSION_TYPES = [
         ('church', 'Church Service'),
         ('pta', 'PTA Meeting'),

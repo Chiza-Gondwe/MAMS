@@ -22,10 +22,20 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'django_filters',
+    'drf_spectacular',
     'rest_framework',
+    'webpush',
     'members',
     'attendance',
     'announcements',
+    'finances',
+    'events',
+    'communications',
+    'church_profile',
+    'school',
+    'sermons',
+    'prayer',
+    'django_apscheduler',
 ]
 
 REST_FRAMEWORK = {
@@ -38,6 +48,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+    
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 SIMPLE_JWT = {
@@ -55,6 +67,11 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+AUTHENTICATION_BACKENDS = [
+    'mams.backends.EmailOrUsernameModelBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 ROOT_URLCONF = 'mams.urls'
@@ -111,6 +128,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -148,4 +166,20 @@ LOGGING = {
             'propagate': True,
         },
     },
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'MAMS API',
+    'DESCRIPTION': 'Member and Attendance Management System API Documentation',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+
+# Use console backend for development (prints to terminal instead of actual sending)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+WEBPUSH_SETTINGS = {
+    "VAPID_PUBLIC_KEY": os.getenv("VAPID_PUBLIC_KEY", ""),
+    "VAPID_PRIVATE_KEY": os.getenv("VAPID_PRIVATE_KEY", ""),
+    "VAPID_ADMIN_EMAIL": "admin@mams.local"
 }

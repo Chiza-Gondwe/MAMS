@@ -1,40 +1,66 @@
-// context/AuthContext.jsx
-import React, { createContext, useState, useContext, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useState, useContext } from 'react';
 
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
+  const [user, setUser] = useState(() => {
     const token = localStorage.getItem('access_token');
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        setUser({ username: payload.username, role: payload.role });
-      } catch (e) {}
+        return { 
+          username: payload.username, 
+          role: payload.role,
+          user_id: payload.user_id,
+          member_id: payload.member_id,
+          first_name: payload.first_name,
+          last_name: payload.last_name,
+          status: payload.status,
+          is_temporary_password: payload.is_temporary_password,
+          org_name: payload.org_name,
+          org_type: payload.org_type
+        };
+      } catch (error) {
+        console.error('Failed to restore authentication session:', error);
+      }
     }
-    setLoading(false);
-  }, []);
+    return null;
+  });
+  const [loading] = useState(false);
 
   const login = async (username, password) => {
-    const res = await fetch('http://127.0.0.1:8000/api/token/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if (data.access) {
-      localStorage.setItem('access_token', data.access);
-      localStorage.setItem('refresh_token', data.refresh);
-      const payload = JSON.parse(atob(data.access.split('.')[1]));
-      setUser({ username: payload.username, role: payload.role });
-      return true;
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/token/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (res.ok && data.access) {
+        localStorage.setItem('access_token', data.access);
+        localStorage.setItem('refresh_token', data.refresh);
+        const payload = JSON.parse(atob(data.access.split('.')[1]));
+        setUser({ 
+          username: payload.username, 
+          role: payload.role,
+          user_id: payload.user_id,
+          member_id: payload.member_id,
+          first_name: payload.first_name,
+          last_name: payload.last_name,
+          status: payload.status,
+          is_temporary_password: payload.is_temporary_password,
+          org_name: payload.org_name,
+          org_type: payload.org_type
+        });
+        return { success: true };
+      }
+      return { success: false, error: data.detail || 'Invalid credentials' };
+    } catch {
+      return { success: false, error: 'Network error. Please try again.' };
     }
-    return false;
   };
 
   const logout = () => {

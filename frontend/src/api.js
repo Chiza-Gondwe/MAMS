@@ -53,7 +53,7 @@ const request = async (endpoint, options = {}) => {
     } catch (refreshError) {
       clearTokens();
       window.location.href = '/login';
-      throw new Error('Session expired. Please login again.');
+      throw new Error('Session expired. Please login again.', { cause: refreshError });
     }
   }
   
@@ -80,14 +80,46 @@ export const api = {
   getMembers: (page = 1, search = '') => request(`/members/?page=${page}&search=${search}`),
   getMember: (id) => request(`/members/${id}/`),
   createMember: (data) => request('/members/', { method: 'POST', body: JSON.stringify(data) }),
-  updateMember: (id, data) => request(`/members/${id}/`, { method: 'PUT', body: JSON.stringify(data) }),
+  createLocalAdmin: (data) => request('/members/create_local_admin/', { method: 'POST', body: JSON.stringify(data) }),
+  changePassword: (password) => request('/members/change_password/', { method: 'POST', body: JSON.stringify({ password }) }),
+  updateMember: (id, data) => request(`/members/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteMember: (id) => request(`/members/${id}/`, { method: 'DELETE' }),
   register: (data) => request('/register/', { method: 'POST', body: JSON.stringify(data) }),
+  verifyEmail: (email, otp) => request('/verify-email/', { method: 'POST', body: JSON.stringify({ email, otp }) }),
+  resendOtp: (email) => request('/resend-otp/', { method: 'POST', body: JSON.stringify({ email }) }),
+  registerChurch: (data) => request('/churches/register/', { method: 'POST', body: JSON.stringify(data) }),
 
-  // Add these to your api.js file
+  // Superadmin Organizations
+  getSuperadminOrganizations: () => request('/superadmin/organizations/'),
+  createSuperadminOrganization: (data) => request('/superadmin/organizations/', { method: 'POST', body: JSON.stringify(data) }),
 
-// Branches
-getBranches: () => request('/branches/'),
+  // Sections
+  getSections: () => request('/sections/'),
+  getPublicSections: () => request('/sections/'),
+  createSection: (data) => request('/sections/', { method: 'POST', body: JSON.stringify(data) }),
+  updateSection: (id, data) => request(`/sections/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteSection: (id) => request(`/sections/${id}/`, { method: 'DELETE' }),
+
+  // Zones
+  getZones: () => request('/zones/'),
+  getPublicZones: () => request('/zones/'),
+  createZone: (data) => request('/zones/', { method: 'POST', body: JSON.stringify(data) }),
+  updateZone: (id, data) => request(`/zones/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteZone: (id) => request(`/zones/${id}/`, { method: 'DELETE' }),
+
+// Ministries
+getMinistries: () => request('/ministries/'),
+createMinistry: (data) => request('/ministries/', { method: 'POST', body: JSON.stringify(data) }),
+updateMinistry: (id, data) => request(`/ministries/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
+deleteMinistry: (id) => request(`/ministries/${id}/`, { method: 'DELETE' }),
+  verifyOrgCode: async (code) => {
+    const response = await fetch(`${API_BASE}/churches/verify-code/?code=${code}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Invalid organization code');
+    }
+    return response.json();
+  },
 
 // Search user by email (for adding members)
 searchUserByEmail: async (email) => {
@@ -109,7 +141,7 @@ searchUserByEmail: async (email) => {
   } catch (error) {
     // If users endpoint doesn't exist, try alternative
     console.error('User search failed:', error);
-    throw new Error('User not found. Please register this user first.');
+    throw new Error('User not found. Please register this user first.', { cause: error });
   }
 },
   
@@ -134,7 +166,7 @@ searchUserByEmail: async (email) => {
   // Announcements
   getAnnouncements: (search = '') => request(`/announcements/?search=${search}`),
   getAnnouncement: (id) => request(`/announcements/${id}/`),
-  createAnnouncement: (data) => request('/announcements/', { 
+  createAnnouncement: (data, memberId) => request('/announcements/', { 
     method: 'POST', 
     body: JSON.stringify({
       title: data.title,
@@ -142,9 +174,51 @@ searchUserByEmail: async (email) => {
       announcement_type: data.type || 'text',
       audience: data.audience || 'all',
       video_url: data.video_url || '',
-      created_by: 1 // You might want to get this from the user context
+      created_by: memberId,
+      target_section: data.target_section,
+      target_zone: data.target_zone
     })
   }),
   updateAnnouncement: (id, data) => request(`/announcements/${id}/`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAnnouncement: (id) => request(`/announcements/${id}/`, { method: 'DELETE' }),
+
+  // Finances
+  getDonations: () => request('/finances/donations/'),
+
+  // Events
+  getEvents: () => request('/events/'),
+  createEvent: (data) => request('/events/', { method: 'POST', body: JSON.stringify(data) }),
+  deleteEvent: (id) => request(`/events/${id}/`, { method: 'DELETE' }),
+
+  // Sermons
+  getSermons: () => request('/sermons/'),
+
+  // Communications
+  getEmails: () => request('/communications/emails/'),
+  sendEmail: (data) => request('/communications/emails/send_email/', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Settings & Analytics
+  getSettings: () => request('/settings/1/'),
+  updateSettings: (data) => request('/settings/1/', { method: 'PATCH', body: JSON.stringify(data) }),
+  getAnalytics: () => request('/analytics/'),
+
+  // School / PTA
+  getClasses: () => request('/school/classes/'),
+  createClass: (data) => request('/school/classes/', { method: 'POST', body: JSON.stringify(data) }),
+  getStudents: () => request('/school/students/'),
+  createStudent: (data) => request('/school/students/', { method: 'POST', body: JSON.stringify(data) }),
+  deleteStudent: (id) => request(`/school/students/${id}/`, { method: 'DELETE' }),
+
+  // Web Push
+  subscribeToPushNotifications: async (subscription) => {
+    return request('/webpush/subscribe/', {
+      method: 'POST',
+      body: JSON.stringify({
+        subscription: subscription,
+        browser: navigator.userAgent.includes('Chrome') ? 'Chrome' : 
+                 navigator.userAgent.includes('Firefox') ? 'Firefox' : 'Unknown',
+        user_agent: navigator.userAgent
+      })
+    });
+  }
 };

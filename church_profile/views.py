@@ -143,14 +143,17 @@ class AnalyticsAPIView(APIView):
         
         # Demographics
         members = Member.objects.filter(organization=church)
-        active_count = members.filter(status='active').count()
-        inactive_count = members.filter(status='inactive').count()
-        visitors_count = members.filter(status='visitor').count()
+        male_count = members.filter(gender='M').count()
+        female_count = members.filter(gender='F').count()
+        unspecified_count = members.exclude(gender__in=['M', 'F']).count()
+        
         demographics = [
-            {'name': 'Active', 'value': active_count},
-            {'name': 'Inactive', 'value': inactive_count},
-            {'name': 'Visitors', 'value': visitors_count}
+            {'name': 'Male', 'value': male_count},
+            {'name': 'Female', 'value': female_count},
         ]
+        
+        if unspecified_count > 0:
+            demographics.append({'name': 'Not Specified', 'value': unspecified_count})
         
         one_year_ago = timezone.now() - timedelta(days=365)
         

@@ -86,13 +86,14 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
         model = Member
         fields = [
             'first_name', 'last_name', 'email',
-            'phone_number', 'role', 'status', 'password', 'ministries', 'section_id', 'zone_id', 'organization'
+            'phone_number', 'role', 'status', 'gender', 'password', 'ministries', 'section_id', 'zone_id', 'organization'
         ]
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
         ministries = validated_data.pop('ministries', [])
         organization = validated_data.pop('organization', None)
+        status_val = validated_data.pop('status', 'pending_review')
         
         with transaction.atomic():
             email = validated_data['email']
@@ -102,14 +103,14 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
                 username=username,
                 email=email,
                 password=password,
-                is_active=False
+                is_active=False,
+                first_name=validated_data.get('first_name', ''),
+                last_name=validated_data.get('last_name', '')
             )
             
             otp = str(random.randint(100000, 999999))
             
             # Default to member status, or pending_review depending on the rules, but user wants them separated from admin tasks
-            status_val = 'pending_review'  # Wait, the user asked for pending_review
-            
             member = Member.objects.create(
                 user=user, 
                 is_verified=False,

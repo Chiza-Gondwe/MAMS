@@ -63,7 +63,7 @@ export default function DashboardLayout() {
   const activeUser = user || { username: 'Admin', role: 'admin' };
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-transparent animate-fade-in-up">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Topbar onSearch={handleSearch} />
@@ -78,7 +78,7 @@ export default function DashboardLayout() {
                 
                 {activeUser.role === 'member' ? (
                   <>
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="glass-card overflow-hidden">
                     <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
                       <h3 className="font-semibold text-slate-800">Recent Announcements</h3>
                     </div>
@@ -127,7 +127,7 @@ export default function DashboardLayout() {
                     
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Recent Sessions */}
-                      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                      <div className="glass-card overflow-hidden">
                         <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
                           <h3 className="font-semibold text-slate-800">Recent Attendance Sessions</h3>
                         </div>
@@ -151,7 +151,7 @@ export default function DashboardLayout() {
                       </div>
 
                       {/* Recent Announcements */}
-                      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                      <div className="glass-card overflow-hidden">
                         <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
                           <h3 className="font-semibold text-slate-800">Recent Announcements</h3>
                         </div>

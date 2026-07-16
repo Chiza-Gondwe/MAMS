@@ -45,6 +45,11 @@ class Member(models.Model):
         ('pending_review', 'Holding Tank (Pending Review)'),
     ]
 
+    GENDER_CHOICES = [
+        ('M', 'Male'),
+        ('F', 'Female'),
+    ]
+
     phone_regex = RegexValidator(
     regex=r'^(\+?260|0)(9[5-9]|7[5-9]|5[0-9])\d{7}$',
     message="Enter a valid Zambian phone number e.g. 0971234567, 0551234567 or +260971234567"
@@ -63,6 +68,7 @@ class Member(models.Model):
     phone_number = models.CharField(max_length=20, validators=[phone_regex])
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, null=True, blank=True)
     organization = models.ForeignKey('church_profile.Organization', on_delete=models.CASCADE, related_name='members', null=True, blank=True)
     section = models.ForeignKey(Section, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')
     zone = models.ForeignKey(Zone, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')

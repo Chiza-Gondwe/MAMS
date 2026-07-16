@@ -13,9 +13,10 @@ export default function Register() {
     email: '',
     phone_number: '',
     password: '',
-    ministries: [],
+    gender: '',
     section_id: '',
-    zone_id: ''
+    zone_id: '',
+    ministries: []
   });
   
   const [ministries, setMinistries] = useState([]);
@@ -86,12 +87,18 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-900 via-sky-950 to-rose-900 py-12 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-      <div className="w-full max-w-md bg-white/95 backdrop-blur-xl p-8 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative z-10 border border-white/20">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-sky-950 to-indigo-950 py-12 relative overflow-hidden">
+      {/* Animated Background Shapes */}
+      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-sky-600/30 rounded-full mix-blend-screen filter blur-[100px] animate-float"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-600/30 rounded-full mix-blend-screen filter blur-[100px] animate-float-reverse"></div>
+      <div className="absolute top-[40%] left-[60%] w-72 h-72 bg-rose-600/20 rounded-full mix-blend-screen filter blur-[100px] animate-float-delayed"></div>
+      
+      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 pointer-events-none"></div>
+      
+      <div className="w-full max-w-md bg-white/70 backdrop-blur-2xl p-8 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.1)] relative z-10 border border-white/40">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-semibold text-slate-800">Create Account</h1>
-          <p className="text-sm text-slate-500 mt-1">Join the MAMS platform</p>
+          <h1 className="text-3xl font-bold bg-gradient-to-br from-sky-800 to-indigo-900 bg-clip-text text-transparent tracking-tight">Create Account</h1>
+          <p className="text-sm text-slate-600 mt-2 font-medium">Join the MAMS platform</p>
         </div>
         
         {!organization ? (
@@ -175,17 +182,33 @@ export default function Register() {
               />
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
-              <input
-                type="text"
-                name="phone_number"
-                placeholder="e.g. 0971234567"
-                value={formData.phone_number}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400"
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <input
+                  type="text"
+                  name="phone_number"
+                  placeholder="e.g. 0971234567"
+                  value={formData.phone_number}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Gender</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400"
+                  required
+                >
+                  <option value="">Select Gender</option>
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                </select>
+              </div>
             </div>
             
             <div>
@@ -257,7 +280,7 @@ export default function Register() {
 
             {error && <p className="text-red-500 text-sm p-2 bg-red-50 rounded-md border border-red-100">{error}</p>}
             
-            <button type="submit" disabled={loading} className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium shadow-sm transition-all mt-4 disabled:opacity-50">
+            <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-semibold py-3 rounded-xl transition-all duration-300 shadow-lg shadow-sky-600/30 hover:shadow-sky-500/40 hover:-translate-y-0.5 mt-4 disabled:opacity-50">
               {loading ? 'Creating Account...' : 'Sign Up'}
             </button>
           </form>

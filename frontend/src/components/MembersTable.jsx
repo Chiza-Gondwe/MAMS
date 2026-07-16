@@ -15,6 +15,8 @@ export default function MembersTable() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sectionFilter, setSectionFilter] = useState('all');
+  const [zoneFilter, setZoneFilter] = useState('all');
   const [ministries, setMinistries] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -29,6 +31,7 @@ export default function MembersTable() {
     last_name: '',
     email: '',
     phone: '',
+    gender: '',
     role: 'member',
     status: 'active',
     section_id: '',
@@ -192,6 +195,7 @@ export default function MembersTable() {
         last_name: formData.last_name,
         email: formData.email,
         phone_number: formData.phone,
+        gender: formData.gender || null,
         role: formData.role,
         status: formData.status,
         ministries: formData.ministries,
@@ -231,6 +235,7 @@ export default function MembersTable() {
         last_name: formData.last_name,
         email: formData.email,
         phone_number: formData.phone,
+        gender: formData.gender || null,
         role: formData.role,
         status: formData.status,
         ministries: formData.ministries,
@@ -287,6 +292,7 @@ export default function MembersTable() {
       first_name: member.first_name,
       last_name: member.last_name,
       email: member.email,
+      gender: member.gender || '',
       phone: member.phone_number || member.phone || '',
       role: member.role || 'member',
       status: member.status || 'active',
@@ -324,6 +330,7 @@ export default function MembersTable() {
       last_name: '',
       email: '',
       phone: '',
+      gender: '',
       role: 'member',
       status: 'active',
       section_id: '',
@@ -340,7 +347,16 @@ export default function MembersTable() {
     const matchesSearch = `${m.first_name} ${m.last_name} ${m.email || ''}`.toLowerCase().includes(search.toLowerCase());
     const matchesRole = roleFilter === 'all' || m.role === roleFilter;
     const matchesStatus = statusFilter === 'all' || m.status === statusFilter;
-    return matchesSearch && matchesRole && matchesStatus;
+    
+    // Member objects might have section/zone as IDs or nested objects.
+    // The API serializer currently returns section_name and zone_name, but the model has section and zone.
+    const memberSectionId = m.section?.id || m.section;
+    const memberZoneId = m.zone?.id || m.zone;
+    
+    const matchesSection = sectionFilter === 'all' || String(memberSectionId) === String(sectionFilter);
+    const matchesZone = zoneFilter === 'all' || String(memberZoneId) === String(zoneFilter);
+    
+    return matchesSearch && matchesRole && matchesStatus && matchesSection && matchesZone;
   });
 
   return (
@@ -351,8 +367,8 @@ export default function MembersTable() {
           <p className="text-xs text-slate-400 mt-0.5">Manage church and PTA members</p>
         </div>
         <div className="flex gap-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+          <div className="relative flex items-center">
+            <Search className="absolute left-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
             <input
               type="text"
               placeholder="Search members..."
@@ -363,7 +379,7 @@ export default function MembersTable() {
           </div>
           <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="select-filter text-sm">
             <option value="all">All roles</option>
-            <option value="member">Member</option>
+            <option value="member">Regular Member</option>
             <option value="pta">PTA</option>
             <option value="section_admin">Section Leader</option>
             <option value="zone_admin">Zone Leader</option>
@@ -374,6 +390,14 @@ export default function MembersTable() {
             <option value="active">Active</option>
             <option value="pending_review">Pending Review</option>
             <option value="inactive">Inactive</option>
+          </select>
+          <select value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value)} className="select-filter text-sm max-w-[120px]">
+            <option value="all">All sections</option>
+            {sections.map(sec => <option key={sec.id} value={sec.id}>{sec.name}</option>)}
+          </select>
+          <select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} className="select-filter text-sm max-w-[120px]">
+            <option value="all">All zones</option>
+            {zones.map(zone => <option key={zone.id} value={zone.id}>{zone.name}</option>)}
           </select>
           <div className="relative">
             <button 
@@ -402,7 +426,7 @@ export default function MembersTable() {
           </div>
           <button 
             onClick={() => { resetForm(); setShowAddModal(true); }} 
-            className="bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors"
+            className="btn-primary flex items-center gap-1.5"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Member
@@ -420,76 +444,78 @@ export default function MembersTable() {
           No members found. Click "Add Member" to get started.
         </div>
       ) : (
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-slate-200">
-              <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
-              <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Email</th>
-              <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Role</th>
-              <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-              <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Joined</th>
-              <th className="text-right py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filtered.map((member, index) => (
-              <tr key={member.id} className="hover:bg-slate-100 transition-colors group even:bg-slate-50/70">
-                <td className="py-3 px-2 text-sm">
-                  <span className="font-medium text-slate-700">{member.first_name} {member.last_name}</span>
-                  <span className="text-slate-400 text-xs ml-2">#{index + 1}</span>
-                 </td>
-                <td className="py-3 px-2 text-sm text-slate-500">{member.email || '—'}</td>
-                <td className="py-3 px-2 text-sm capitalize text-slate-600">{member.role === 'pta' ? 'PTA' : member.role === 'section_admin' ? 'Section Leader' : member.role === 'zone_admin' ? 'Zone Leader' : member.role || 'member'}</td>
-                <td className="py-3 px-2">
-                  <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${
-                    member.status === 'active' 
-                      ? 'bg-green-50 text-green-700' 
-                      : member.status === 'pending_review'
-                      ? 'bg-orange-50 text-orange-600'
-                      : 'bg-red-50 text-red-600'
-                  }`}>
-                    {member.status === 'pending_review' ? 'Pending Review' : member.status || 'active'}
-                  </span>
-                 </td>
-                <td className="py-3 px-2 text-sm text-slate-500">{formatDate(member.date_joined)}</td>
-                <td className="py-3 px-2 text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    {member.status === 'pending_review' && (
-                      <button 
-                        onClick={() => handleApproveMember(member)} 
-                        className="p-1.5 text-slate-400 hover:text-green-600 transition-colors rounded-md hover:bg-green-50"
-                        title="Approve member"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    <button 
-                      onClick={() => openViewModal(member)} 
-                      className="p-1.5 text-slate-400 hover:text-sky-600 transition-colors rounded-md hover:bg-slate-200"
-                      title="View details"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
-                      onClick={() => openEditModal(member)} 
-                      className="p-1.5 text-slate-400 hover:text-sky-600 transition-colors rounded-md hover:bg-slate-200"
-                      title="Edit member"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
-                      onClick={() => openDeleteModal(member)} 
-                      className="p-1.5 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-200"
-                      title="Delete member"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                 </td>
+        <div className="glass-card overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-200">
+                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
+                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Email</th>
+                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Role</th>
+                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Joined</th>
+                <th className="text-right py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.map((member, index) => (
+                <tr key={member.id} className="hover:bg-slate-100 transition-colors group even:bg-slate-50/70">
+                  <td className="py-3 px-2 text-sm">
+                    <span className="font-medium text-slate-700">{member.first_name} {member.last_name}</span>
+                    <span className="text-slate-400 text-xs ml-2">#{index + 1}</span>
+                   </td>
+                  <td className="py-3 px-2 text-sm text-slate-500">{member.email || '—'}</td>
+                  <td className="py-3 px-2 text-sm capitalize text-slate-600">{member.role === 'pta' ? 'PTA' : member.role === 'section_admin' ? 'Section Leader' : member.role === 'zone_admin' ? 'Zone Leader' : member.role || 'member'}</td>
+                  <td className="py-3 px-2">
+                    <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${
+                      member.status === 'active' 
+                        ? 'bg-green-50 text-green-700' 
+                        : member.status === 'pending_review'
+                        ? 'bg-orange-50 text-orange-600'
+                        : 'bg-red-50 text-red-600'
+                    }`}>
+                      {member.status === 'pending_review' ? 'Pending Review' : member.status || 'active'}
+                    </span>
+                   </td>
+                  <td className="py-3 px-2 text-sm text-slate-500">{formatDate(member.date_joined)}</td>
+                  <td className="py-3 px-2 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {member.status === 'pending_review' && (
+                        <button 
+                          onClick={() => handleApproveMember(member)} 
+                          className="p-1.5 text-slate-400 hover:text-green-600 transition-colors rounded-md hover:bg-green-50"
+                          title="Approve member"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => openViewModal(member)} 
+                        className="p-1.5 text-slate-400 hover:text-sky-600 transition-colors rounded-md hover:bg-slate-200"
+                        title="View details"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => openEditModal(member)} 
+                        className="p-1.5 text-slate-400 hover:text-sky-600 transition-colors rounded-md hover:bg-slate-200"
+                        title="Edit member"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        onClick={() => openDeleteModal(member)} 
+                        className="p-1.5 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-200"
+                        title="Delete member"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Add Member Modal */}
@@ -573,6 +599,18 @@ export default function MembersTable() {
                   placeholder="09XXXXXXXX or +260XXXXXXXX"
                   className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                 />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Gender</label>
+                <select 
+                  value={formData.gender} 
+                  onChange={e => setFormData({...formData, gender: e.target.value})} 
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
+                >
+                  <option value="">Not Specified</option>
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -730,6 +768,18 @@ export default function MembersTable() {
                   onChange={e => setFormData({...formData, phone: e.target.value})} 
                   className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                 />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Gender</label>
+                <select 
+                  value={formData.gender} 
+                  onChange={e => setFormData({...formData, gender: e.target.value})} 
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
+                >
+                  <option value="">Not Specified</option>
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

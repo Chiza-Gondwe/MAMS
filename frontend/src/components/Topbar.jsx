@@ -163,7 +163,7 @@ export default function Topbar({ onSearch }) {
   };
 
   return (
-    <header className="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-6 z-30 relative shadow-sm">
+    <header className="h-16 border-b border-white/40 bg-white/60 backdrop-blur-md flex items-center justify-between px-6 z-30 relative shadow-[0_4px_30px_rgba(0,0,0,0.03)]">
       <div className="relative w-96" ref={searchRef}>
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
         <input

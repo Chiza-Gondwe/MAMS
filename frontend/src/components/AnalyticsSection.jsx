@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import { TrendingUp, Users, DollarSign } from 'lucide-react';
 
-const COLORS = ['#0ea5e9', '#94a3b8', '#10b981'];
+const COLORS = ['#0ea5e9', '#d946ef', '#94a3b8']; // Blue (Male), Pink (Female), Gray (Unspecified)
 
 export default function AnalyticsSection() {
   const [data, setData] = useState({ demographics: [], attendance_trend: [], financial_trend: [] });

@@ -95,7 +95,7 @@ class MemberViewSet(BaseMultiTenantViewSet):
             
         profile = self.request.user.member_profile
         
-        if profile.role in ['superadmin', 'admin']:
+        if profile.role in ['superadmin', 'admin', 'pta']:
             return queryset
         elif profile.role == 'section_admin' and profile.section:
             return queryset.filter(section=profile.section)
@@ -104,8 +104,8 @@ class MemberViewSet(BaseMultiTenantViewSet):
         elif profile.role == 'group_leader' and profile.ministries.exists():
             return queryset.filter(ministries__in=profile.ministries.all()).distinct()
             
-        # If regular member or unassigned leader, only see active members
-        return queryset.filter(status='active')
+        # If regular member or unassigned leader, only see themselves
+        return queryset.filter(id=profile.id)
 
     def perform_create(self, serializer):
         from django.contrib.auth.models import User
@@ -130,12 +130,16 @@ class MemberViewSet(BaseMultiTenantViewSet):
                         username=username,
                         email=email,
                         password=password,
-                        is_active=True
+                        is_active=True,
+                        first_name=member.first_name,
+                        last_name=member.last_name
                     )
                 else:
                     # If user exists (e.g. from incomplete frontend registration), activate them and set default password
                     user.is_active = True
                     user.set_password(password)
+                    user.first_name = member.first_name
+                    user.last_name = member.last_name
                     user.save()
                     
                 member.user = user
@@ -154,6 +158,13 @@ class MemberViewSet(BaseMultiTenantViewSet):
                     )
                 except Exception as e:
                     print(f"Failed to send welcome email: {e}")
+
+    def perform_update(self, serializer):
+        member = serializer.save()
+        if member.user:
+            member.user.first_name = member.first_name
+            member.user.last_name = member.last_name
+            member.user.save()
 
     def get_permissions(self):
         from members.permissions import IsAdminOrSelf

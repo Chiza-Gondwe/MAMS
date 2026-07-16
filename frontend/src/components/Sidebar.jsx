@@ -73,15 +73,11 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-64 flex-shrink-0 bg-sky-950 flex flex-col border-r border-sky-900/50 shadow-2xl relative z-20">
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 pointer-events-none"></div>
+    <aside className="w-64 flex-shrink-0 bg-white/60 backdrop-blur-2xl flex flex-col border-r border-white/40 shadow-[4px_0_24px_rgba(0,0,0,0.02)] relative z-20">
       <div className="px-6 py-8 relative z-10 shrink-0">
-        <h1 className="text-2xl font-bold text-white tracking-tight leading-tight">
+        <h1 className="text-2xl font-bold bg-gradient-to-br from-sky-700 to-indigo-800 bg-clip-text text-transparent tracking-tight leading-tight">
           {activeUser.org_name ? activeUser.org_name : 'MAMS'}
         </h1>
-        <p className="text-xs text-sky-200 mt-1 font-medium leading-tight">
-          Membership Affiliation &<br/>Management System
-        </p>
       </div>
       <nav className="px-3 space-y-1 flex-1 relative z-10 overflow-y-auto overflow-x-hidden pb-4">
         {displayNavItems.map((item) => (
@@ -91,29 +87,33 @@ export default function Sidebar() {
             end={item.path === '/dashboard'}
             title={`Navigate to ${item.label}`}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 ${
+              `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 group ${
                 isActive 
-                  ? 'bg-gradient-to-r from-sky-600 to-rose-600 text-white shadow-lg shadow-rose-900/20 border border-white/10' 
-                  : 'text-sky-100/70 hover:bg-white/5 hover:text-white'
+                  ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-lg shadow-sky-600/30 border border-transparent' 
+                  : 'text-slate-600 hover:bg-white/80 hover:text-sky-700 hover:shadow-sm hover:border-white/50 border border-transparent hover:translate-x-1'
               }`
             }
           >
-            <item.icon className="w-4 h-4" />
-            <span>{item.label}</span>
+            {({ isActive }) => (
+              <>
+                <item.icon className={`w-4 h-4 transition-transform duration-300 ${isActive ? '' : 'group-hover:scale-110'}`} />
+                <span>{item.label}</span>
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
       
-      <div className="p-4 mt-auto border-t border-slate-800 shrink-0 relative z-10 bg-sky-950">
+      <div className="p-4 mt-auto border-t border-slate-200/50 shrink-0 relative z-10 bg-white/40 backdrop-blur-md">
         <div className="flex items-center gap-3 w-full group">
-          <div className="w-9 h-9 rounded-full bg-sky-600 flex items-center justify-center text-sm font-bold text-white shadow-inner">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-sm font-bold text-white shadow-inner shadow-white/20">
             {(activeUser?.first_name || activeUser?.username || 'U')[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white truncate leading-tight">
+            <p className="text-sm font-bold text-slate-800 truncate leading-tight group-hover:text-sky-700 transition-colors">
               {activeUser?.first_name || activeUser?.username}
             </p>
-            <p className="text-xs text-slate-400 capitalize">{activeUser.role}</p>
+            <p className="text-xs text-slate-500 capitalize font-medium">{activeUser.role}</p>
           </div>
         </div>
       </div>

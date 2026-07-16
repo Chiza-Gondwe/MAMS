@@ -98,7 +98,7 @@ class AttendanceRecordViewSet(BaseMultiTenantViewSet):
         if not profile:
             return queryset.none()
             
-        if profile.role in ['superadmin', 'admin', 'section_leader', 'group_leader']:
+        if profile.role in ['superadmin', 'admin', 'section_leader', 'group_leader', 'pta']:
             return queryset
         return queryset.filter(member=profile)
 

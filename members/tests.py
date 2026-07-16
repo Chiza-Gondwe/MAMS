@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from church_profile.models import Organization
 from members.models import Member
 from members.serializers import RegisterMemberSerializer
 
@@ -75,6 +76,9 @@ class MemberModelTest(APITestCase):
 
 
 class RegisterMemberSerializerTest(APITestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(name="Test Church", org_type="CHURCH", city="LUSAKA")
+
     def test_serializer_with_valid_data(self):
         data = {
             'first_name': 'Alice',
@@ -83,7 +87,8 @@ class RegisterMemberSerializerTest(APITestCase):
             'phone_number': '0979876543',
             'role': 'member',
             'status': 'active',
-            'password': 'securepassword123'
+            'password': 'securepassword123',
+            'organization': self.org.id
         }
         serializer = RegisterMemberSerializer(data=data)
         self.assertTrue(serializer.is_valid(), serializer.errors)
@@ -100,23 +105,27 @@ class RegisterMemberSerializerTest(APITestCase):
 
 class MemberAPITest(APITestCase):
     def setUp(self):
+        self.org = Organization.objects.create(name="Test Church", org_type="CHURCH", city="LUSAKA")
         # Create users & members for each role
         self.admin_user = User.objects.create_user(username='admin@example.com', email='admin@example.com', password='password123')
         self.admin_member = Member.objects.create(
             user=self.admin_user, first_name='Admin', last_name='User',
-            email='admin@example.com', phone_number='0971111111', role='admin'
+            email='admin@example.com', phone_number='0971111111', role='admin',
+            organization=self.org
         )
 
         self.pta_user = User.objects.create_user(username='pta@example.com', email='pta@example.com', password='password123')
         self.pta_member = Member.objects.create(
             user=self.pta_user, first_name='PTA', last_name='Official',
-            email='pta@example.com', phone_number='0972222222', role='pta'
+            email='pta@example.com', phone_number='0972222222', role='pta',
+            organization=self.org
         )
 
         self.member_user = User.objects.create_user(username='member@example.com', email='member@example.com', password='password123')
         self.member_member = Member.objects.create(
             user=self.member_user, first_name='Regular', last_name='Member',
-            email='member@example.com', phone_number='0973333333', role='member'
+            email='member@example.com', phone_number='0973333333', role='member',
+            organization=self.org
         )
 
     def test_anonymous_access_denied(self):
@@ -161,9 +170,9 @@ class MemberAPITest(APITestCase):
         response = self.client.get(reverse('member-detail', kwargs={'pk': self.admin_member.id}))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-        # Modifying a profile should return 403 Forbidden
+        # Modifying a profile should return 200 OK for their own profile
         response = self.client.patch(reverse('member-detail', kwargs={'pk': self.member_member.id}), {'first_name': 'NewName'})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_register_member_endpoint(self):
         data = {
@@ -173,7 +182,8 @@ class MemberAPITest(APITestCase):
             'phone_number': '0978888888',
             'role': 'member',
             'status': 'active',
-            'password': 'bobspassword123'
+            'password': 'bobspassword123',
+            'organization': self.org.id
         }
         response = self.client.post(reverse('register_member'), data=data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

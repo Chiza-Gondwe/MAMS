@@ -2,35 +2,41 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from church_profile.models import Organization
 from members.models import Member
 from attendance.models import AttendanceSession, AttendanceRecord
 
 class AttendanceSessionAPITest(APITestCase):
     def setUp(self):
+        self.org = Organization.objects.create(name="Test Church", org_type="CHURCH", city="LUSAKA")
         # Create users & members
         self.admin_user = User.objects.create_user(username='admin@example.com', email='admin@example.com', password='password123')
         self.admin_member = Member.objects.create(
             user=self.admin_user, first_name='Admin', last_name='User',
-            email='admin@example.com', phone_number='0971111111', role='admin'
+            email='admin@example.com', phone_number='0971111111', role='admin',
+            organization=self.org
         )
 
         self.member_user = User.objects.create_user(username='member@example.com', email='member@example.com', password='password123')
         self.member_member = Member.objects.create(
             user=self.member_user, first_name='Regular', last_name='Member',
-            email='member@example.com', phone_number='0973333333', role='member'
+            email='member@example.com', phone_number='0973333333', role='member',
+            organization=self.org
         )
 
         self.inactive_user = User.objects.create_user(username='inactive@example.com', email='inactive@example.com', password='password123')
         self.inactive_member = Member.objects.create(
             user=self.inactive_user, first_name='Inactive', last_name='Member',
-            email='inactive@example.com', phone_number='0974444444', role='member', status='inactive'
+            email='inactive@example.com', phone_number='0974444444', role='member', status='inactive',
+            organization=self.org
         )
 
         # Create a session
         self.session = AttendanceSession.objects.create(
             title='Sunday Morning Service',
             session_type='church',
-            date='2026-06-03'
+            date='2026-06-03',
+            organization=self.org
         )
 
     def test_anonymous_cannot_list_sessions(self):
@@ -109,33 +115,38 @@ class AttendanceSessionAPITest(APITestCase):
 
 class AttendanceRecordAPITest(APITestCase):
     def setUp(self):
+        self.org = Organization.objects.create(name="Test Church", org_type="CHURCH", city="LUSAKA")
         # Create users & members
         self.admin_user = User.objects.create_user(username='admin@example.com', email='admin@example.com', password='password123')
         self.admin_member = Member.objects.create(
             user=self.admin_user, first_name='Admin', last_name='User',
-            email='admin@example.com', phone_number='0971111111', role='admin'
+            email='admin@example.com', phone_number='0971111111', role='admin',
+            organization=self.org
         )
 
         self.pta_user = User.objects.create_user(username='pta@example.com', email='pta@example.com', password='password123')
         self.pta_member = Member.objects.create(
             user=self.pta_user, first_name='PTA', last_name='Official',
-            email='pta@example.com', phone_number='0972222222', role='pta'
+            email='pta@example.com', phone_number='0972222222', role='pta',
+            organization=self.org
         )
 
         self.member_user1 = User.objects.create_user(username='m1@example.com', email='m1@example.com', password='password123')
         self.member_member1 = Member.objects.create(
             user=self.member_user1, first_name='M1', last_name='User',
-            email='m1@example.com', phone_number='0973333333', role='member'
+            email='m1@example.com', phone_number='0973333333', role='member',
+            organization=self.org
         )
 
         self.member_user2 = User.objects.create_user(username='m2@example.com', email='m2@example.com', password='password123')
         self.member_member2 = Member.objects.create(
             user=self.member_user2, first_name='M2', last_name='User',
-            email='m2@example.com', phone_number='0974444444', role='member'
+            email='m2@example.com', phone_number='0974444444', role='member',
+            organization=self.org
         )
 
         self.session = AttendanceSession.objects.create(
-            title='Sunday Service', session_type='church', date='2026-06-03'
+            title='Sunday Service', session_type='church', date='2026-06-03', organization=self.org
         )
 
         # Create records

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Users, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Building2, Plus, Users, Search, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
 import { api } from '../api';
 
 export default function Organizations() {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   
   // Modals state
   const [showOrgModal, setShowOrgModal] = useState(false);
@@ -39,11 +40,25 @@ export default function Organizations() {
       await api.createSuperadminOrganization(orgForm);
       setShowOrgModal(false);
       setOrgForm({ name: '', org_type: 'CHURCH', city: 'LUSAKA' });
+      setSuccessMsg('Organization created successfully.');
+      setTimeout(() => setSuccessMsg(''), 3000);
       fetchOrganizations();
     } catch (err) {
       alert(err.message || 'Failed to create organization');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteOrg = async (orgId, orgName) => {
+    if (!window.confirm(`Are you absolutely sure you want to delete ${orgName}? This will wipe all data.`)) return;
+    try {
+      await api.deleteSuperadminOrganization(orgId);
+      setOrganizations(organizations.filter(org => org.id !== orgId));
+      setSuccessMsg('Organization deleted successfully.');
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      setError('Failed to delete organization.');
     }
   };
 
@@ -88,6 +103,12 @@ export default function Organizations() {
         </div>
       )}
 
+      {successMsg && (
+        <div className="mb-6 p-4 bg-emerald-50 text-emerald-600 rounded-lg flex items-center gap-3 text-sm">
+          <CheckCircle2 className="w-5 h-5" /> {successMsg}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -127,6 +148,12 @@ export default function Organizations() {
                         className="px-3 py-1.5 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors flex items-center gap-1 inline-flex"
                       >
                         <Users className="w-3 h-3" /> Assign Local Admin
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteOrg(org.id, org.name)}
+                        className="ml-2 px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors flex items-center gap-1 inline-flex"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
                       </button>
                     </td>
                   </tr>

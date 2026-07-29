@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useState, useContext } from 'react';
+import { createContext, useState, useContext, useEffect } from 'react';
+import { api } from '../api';
 
 const AuthContext = createContext();
 
@@ -30,6 +31,19 @@ export const AuthProvider = ({ children }) => {
     return null;
   });
   const [loading] = useState(false);
+
+  // Silently refresh profile data on mount/refresh
+  useEffect(() => {
+    if (user && user.username) {
+      api.getCurrentUser()
+        .then(data => {
+          if (data && data.role) {
+            setUser(prev => ({...prev, ...data}));
+          }
+        })
+        .catch(err => console.error('Silent profile update failed', err));
+    }
+  }, []);
 
   const login = async (username, password) => {
     try {
@@ -64,7 +78,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.clear();
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     setUser(null);
     window.location.href = '/login';
   };

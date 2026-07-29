@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
-import { Plus, Trash2, Edit2, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, Loader2, X } from 'lucide-react';
 
 export default function Ministries() {
   const [ministries, setMinistries] = useState([]);
@@ -126,8 +126,13 @@ export default function Ministries() {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">{editingId ? 'Edit Group' : 'Create New Group'}</h2>
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Edit Group' : 'Create New Group'}</h2>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div>

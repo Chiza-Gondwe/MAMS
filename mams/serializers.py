@@ -3,6 +3,10 @@ from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from django.contrib.auth.models import User
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    default_error_messages = {
+        'no_active_account': 'Incorrect email or password.'
+    }
+
     def validate(self, attrs):
         try:
             return super().validate(attrs)

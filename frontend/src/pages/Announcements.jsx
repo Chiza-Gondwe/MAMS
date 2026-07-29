@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { formatDate } from '../utils';
-import { Trash2, Plus, Search } from 'lucide-react';
+import { Trash2, Plus, Search, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Announcements() {
@@ -153,10 +153,12 @@ export default function Announcements() {
       {/* Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b border-slate-100">
               <h2 className="text-xl font-semibold text-slate-800">New Announcement</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">×</button>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -176,46 +178,48 @@ export default function Announcements() {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Audience</label>
                   <select value={formData.audience} onChange={e => setFormData({...formData, audience: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400">
-                    {user?.role === 'admin' && <option value="all">Everyone (Church & PTA)</option>}
-                    <option value="members">Church Members Only</option>
-                    {user?.role !== 'group_leader' && <option value="leaders">All Leaders</option>}
-                    {user?.role === 'admin' || user?.role === 'section_admin' ? <option value="section_admins">Section Leaders Only</option> : null}
-                    {user?.role === 'admin' || user?.role === 'zone_admin' ? <option value="zone_admins">Zone Leaders Only</option> : null}
-                    {user?.role === 'admin' && <option value="pta">PTA Officials</option>}
+                    {user?.role === 'admin' && <option value="all">Everyone {user?.org_type === 'PTA' ? '(Students & PTA)' : '(Entire Congregation)'}</option>}
+                    <option value="members">{user?.org_type === 'PTA' ? 'Parents/Students Only' : 'Church Members Only'}</option>
+                    {user?.role !== 'group_leader' && <option value="leaders">{user?.org_type === 'PTA' ? 'All Teachers/Officials' : 'All Leaders'}</option>}
+                    {user?.role === 'admin' || user?.role === 'section_admin' ? <option value="section_admins">{user?.org_type === 'PTA' ? 'Grade Leaders Only' : 'Section Leaders Only'}</option> : null}
+                    {user?.role === 'admin' || user?.role === 'zone_admin' ? <option value="zone_admins">{user?.org_type === 'PTA' ? 'Department Heads Only' : 'Zone Leaders Only'}</option> : null}
+                    {user?.role === 'admin' && user?.org_type === 'PTA' && <option value="pta">PTA Officials Only</option>}
                   </select>
                 </div>
               </div>
 
               {(user?.role === 'admin' || user?.role === 'superadmin') && (formData.audience === 'all' || formData.audience === 'members' || formData.audience === 'section_admins' || formData.audience === 'zone_admins') ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Specific Sections (Optional)</label>
-                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border border-slate-200 rounded-md">
+                  <div className="space-y-4 pt-4 border-t border-slate-200">
+                    <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Specific {user?.org_type === 'PTA' ? 'Classes' : 'Sections'} (Optional)</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                       {sections.map(s => (
-                        <label key={s.id} className="flex items-center gap-2 text-sm text-slate-700">
+                        <label key={s.id} className="flex items-center space-x-2 text-sm text-slate-700">
                           <input type="checkbox" checked={formData.target_sections.includes(s.id)} onChange={(e) => {
                             if (e.target.checked) setFormData({...formData, target_sections: [...formData.target_sections, s.id]});
                             else setFormData({...formData, target_sections: formData.target_sections.filter(id => id !== s.id)});
-                          }} className="rounded border-slate-300" /> {s.name}
+                          }} className="rounded text-sky-600 focus:ring-sky-500" />
+                          <span>{s.name}</span>
                         </label>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Specific Zones (Optional)</label>
-                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border border-slate-200 rounded-md">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Specific {user?.org_type === 'PTA' ? 'Grades' : 'Zones'} (Optional)</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                       {zones.map(z => (
-                        <label key={z.id} className="flex items-center gap-2 text-sm text-slate-700">
+                        <label key={z.id} className="flex items-center space-x-2 text-sm text-slate-700">
                           <input type="checkbox" checked={formData.target_zones.includes(z.id)} onChange={(e) => {
                             if (e.target.checked) setFormData({...formData, target_zones: [...formData.target_zones, z.id]});
                             else setFormData({...formData, target_zones: formData.target_zones.filter(id => id !== z.id)});
-                          }} className="rounded border-slate-300" /> {z.name}
+                          }} className="rounded text-sky-600 focus:ring-sky-500" />
+                          <span>{z.name}</span>
                         </label>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Specific Groups/Ministries (Optional)</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Specific {user?.org_type === 'PTA' ? 'Committees' : 'Ministries'} (Optional)</label>
                     <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border border-slate-200 rounded-md">
                       {ministries.map(m => (
                         <label key={m.id} className="flex items-center gap-2 text-sm text-slate-700">

@@ -65,7 +65,7 @@ from communications.views import save_webpush_subscription
 from church_profile.views import AnalyticsAPIView
 
 from church_profile.views import SuperadminOrganizationViewSet
-from members.views import create_local_admin, change_password
+from members.views import create_local_admin, change_password, get_current_user, request_password_reset, confirm_password_reset
 
 router.register(r'superadmin/organizations', SuperadminOrganizationViewSet, basename='superadmin-organization')
 
@@ -75,8 +75,11 @@ urlpatterns = [
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/register/', register_member, name='register_member'),
+    path('api/auth/me/', get_current_user, name='auth_me'),
     path('api/members/create_local_admin/', create_local_admin, name='create_local_admin'),
     path('api/members/change_password/', change_password, name='change_password'),
+    path('api/password-reset/request/', request_password_reset, name='request_password_reset'),
+    path('api/password-reset/confirm/', confirm_password_reset, name='confirm_password_reset'),
     path('api/verify-email/', verify_email, name='verify_email'),
     path('api/resend-otp/', resend_otp, name='resend_otp'),
     path('api/analytics/', AnalyticsAPIView.as_view(), name='analytics'),

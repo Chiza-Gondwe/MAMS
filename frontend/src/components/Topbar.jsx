@@ -1,10 +1,12 @@
 // components/Topbar.jsx
 import { Search, Bell, User, ChevronDown, Megaphone } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 
 export default function Topbar({ onSearch }) {
+  const navigate = useNavigate();
   const { logout, user } = useAuth();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -90,8 +92,14 @@ export default function Topbar({ onSearch }) {
         const top5 = allNotifs.slice(0, 5);
         setNotifications(top5);
         
-        const lastReadTimestamp = parseInt(localStorage.getItem('lastReadTimestamp') || '0', 10);
-        const unread = top5.filter(n => n.date.getTime() > lastReadTimestamp).length;
+        let readNotifs = [];
+        try {
+          readNotifs = JSON.parse(localStorage.getItem('readNotifs') || '[]');
+        } catch (e) {
+          readNotifs = [];
+        }
+        
+        const unread = top5.filter(n => !readNotifs.includes(n.id)).length;
         setUnreadCount(unread);
       } catch (err) {
         console.error("Failed to load notifications", err);
@@ -105,9 +113,29 @@ export default function Topbar({ onSearch }) {
 
   const handleMarkAllAsRead = () => {
     if (notifications.length > 0) {
-      localStorage.setItem('lastReadTimestamp', Date.now().toString());
+      const allIds = notifications.map(n => n.id);
+      localStorage.setItem('readNotifs', JSON.stringify(allIds));
       setUnreadCount(0);
     }
+  };
+
+  const handleNotificationClick = (notif) => {
+    // Navigate based on type
+    if (notif.type === 'event') navigate('/dashboard/events');
+    else if (notif.type === 'sermon') navigate('/dashboard/sermons');
+    else navigate('/dashboard/announcements');
+    
+    // Auto-mark this specific notification as read to clear the red dot
+    try {
+      const readNotifs = JSON.parse(localStorage.getItem('readNotifs') || '[]');
+      if (!readNotifs.includes(notif.id)) {
+        readNotifs.push(notif.id);
+        localStorage.setItem('readNotifs', JSON.stringify(readNotifs));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch(e) {}
+    
+    setShowNotifications(false);
   };
 
   // Close dropdowns when clicking outside
@@ -254,7 +282,11 @@ export default function Topbar({ onSearch }) {
                   <div className="p-6 text-center text-slate-500 text-sm">No new notifications</div>
                 ) : (
                   notifications.map((notif, idx) => (
-                    <div key={idx} className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3">
+                    <div 
+                      key={idx} 
+                      onClick={() => handleNotificationClick(notif)}
+                      className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3"
+                    >
                       <div className="mt-0.5 bg-indigo-50 p-1.5 rounded-full text-indigo-600 flex-shrink-0">
                         <Megaphone className="w-4 h-4" />
                       </div>
@@ -280,7 +312,11 @@ export default function Topbar({ onSearch }) {
             className="flex items-center gap-2 text-sm text-slate-600 hover:text-indigo-600 transition-colors p-1.5 rounded-md hover:bg-indigo-50"
             title="User Settings & Logout"
           >
-            <User className="w-4 h-4" />
+            {user?.profile_picture ? (
+              <img src={user.profile_picture.replace(/^https?:\/\/[^\/]+/, '')} alt="Profile" className="w-6 h-6 rounded-full object-cover shadow-sm border border-slate-200" />
+            ) : (
+              <User className="w-4 h-4" />
+            )}
             <span className="font-medium">{user?.first_name || user?.username || 'Admin'}</span>
             <ChevronDown className="w-3 h-3" />
           </button>

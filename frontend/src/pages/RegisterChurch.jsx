@@ -6,6 +6,7 @@ import { Eye, EyeOff, Building2, CheckCircle2, User, Key, Mail, Phone } from 'lu
 export default function RegisterChurch() {
   const [formData, setFormData] = useState({
     church_name: '',
+    org_type: 'CHURCH',
     first_name: '',
     last_name: '',
     email: '',
@@ -56,12 +57,12 @@ export default function RegisterChurch() {
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-8 h-8 text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Church Registered!</h2>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">Organization Registered!</h2>
           <p className="text-slate-600 mb-6">You are now the admin for <strong>{successData.organization?.name}</strong>.</p>
           
           <div className="bg-sky-50 border border-sky-100 p-4 rounded-xl mb-6">
             <h3 className="text-sky-800 font-medium mb-1 text-sm">Your Organization Code</h3>
-            <p className="text-xs text-sky-600 mb-3">Share this code with your members so they can join your church.</p>
+            <p className="text-xs text-sky-600 mb-3">Share this code with your members so they can join your organization.</p>
             <div className="bg-white px-4 py-3 border border-sky-200 rounded-lg text-lg font-bold text-sky-700 tracking-wider">
               {successData.org_code}
             </div>
@@ -91,24 +92,40 @@ export default function RegisterChurch() {
           <div className="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-3">
             <Building2 className="w-6 h-6 text-sky-600" />
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-br from-sky-800 to-indigo-900 bg-clip-text text-transparent tracking-tight">Register Your Church</h1>
+          <h1 className="text-3xl font-bold bg-gradient-to-br from-sky-800 to-indigo-900 bg-clip-text text-transparent tracking-tight">Register Organization</h1>
           <p className="text-sm text-slate-600 mt-2 font-medium">Create a new workspace for your congregation</p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Church Name</label>
-            <div className="relative">
-              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                name="church_name"
-                value={formData.church_name}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Organization Name</label>
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  name="church_name"
+                  value={formData.church_name}
+                  onChange={handleChange}
+                  placeholder="e.g. Grace Fellowship Church or St. Jude School"
+                  className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Organization Type</label>
+              <select
+                name="org_type"
+                value={formData.org_type}
                 onChange={handleChange}
-                placeholder="e.g. Grace Fellowship Church"
-                className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
                 required
-              />
+              >
+                <option value="CHURCH">Church</option>
+                <option value="PTA">School / PTA</option>
+              </select>
             </div>
           </div>
 
@@ -199,13 +216,13 @@ export default function RegisterChurch() {
           {error && <p className="text-red-500 text-sm p-3 bg-red-50 rounded-lg border border-red-100 mt-2">{error}</p>}
           
           <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-semibold py-3 rounded-xl transition-all duration-300 shadow-lg shadow-sky-600/30 hover:shadow-sky-500/40 hover:-translate-y-0.5 mt-4 disabled:opacity-50">
-            {loading ? 'Registering...' : 'Create Church Workspace'}
+            {loading ? 'Registering...' : 'Create Organization Workspace'}
           </button>
         </form>
         
         <div className="mt-6 text-center">
           <p className="text-sm text-slate-500">
-            Are you a member? <span onClick={() => navigate('/register')} className="text-sky-600 hover:underline cursor-pointer font-medium">Join an existing church</span>
+            Are you a member? <span onClick={() => navigate('/register')} className="text-sky-600 hover:underline cursor-pointer font-medium">Join an existing organization</span>
           </p>
           <p className="text-sm text-slate-500 mt-2">
             Already registered? <span onClick={() => navigate('/login')} className="text-sky-600 hover:underline cursor-pointer font-medium">Sign in</span>

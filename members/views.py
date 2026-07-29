@@ -1,6 +1,6 @@
 from mams.mixins import BaseMultiTenantViewSet
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.contrib.auth.models import User
@@ -21,9 +21,10 @@ class SectionViewSet(BaseMultiTenantViewSet):
         serializer.save(organization=self.request.user.member_profile.organization)
 
     def get_permissions(self):
+        from members.permissions import IsAdmin
         if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAuthenticated()]
+            return [IsAuthenticated()]
+        return [IsAdmin()]
 
 class ZoneViewSet(BaseMultiTenantViewSet):
     serializer_class = ZoneWithSectionsSerializer
@@ -38,9 +39,10 @@ class ZoneViewSet(BaseMultiTenantViewSet):
         serializer.save(organization=self.request.user.member_profile.organization)
 
     def get_permissions(self):
+        from members.permissions import IsAdmin
         if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAuthenticated()]
+            return [IsAuthenticated()]
+        return [IsAdmin()]
 
 class MinistryViewSet(BaseMultiTenantViewSet):
     serializer_class = MinistrySerializer
@@ -55,9 +57,10 @@ class MinistryViewSet(BaseMultiTenantViewSet):
         serializer.save(organization=self.request.user.member_profile.organization)
 
     def get_permissions(self):
+        from members.permissions import IsAdmin
         if self.action in ['list', 'retrieve']:
-            return [AllowAny()]
-        return [IsAuthenticated()]
+            return [IsAuthenticated()]
+        return [IsAdmin()]
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = UserSerializer
@@ -160,6 +163,24 @@ class MemberViewSet(BaseMultiTenantViewSet):
                     print(f"Failed to send welcome email: {e}")
 
     def perform_update(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
+        
+        profile = getattr(self.request.user, 'member_profile', None)
+        
+        # Enforce Power Ceiling and Field Restrictions
+        if profile and profile.role not in ['superadmin', 'admin']:
+            # Regular members cannot change their own role, status, or organization
+            for field in ['role', 'status', 'organization', 'is_verified']:
+                if field in serializer.validated_data:
+                    raise PermissionDenied(f"You do not have permission to change your {field}.")
+                    
+            if 'role' in serializer.validated_data:
+                new_role = serializer.validated_data['role']
+                if profile.role == 'zone_admin' and new_role == 'zone_admin':
+                    raise PermissionDenied("Zone Leaders cannot assign other Zone Leaders.")
+                if profile.role == 'section_admin' and new_role in ['zone_admin', 'section_admin']:
+                    raise PermissionDenied("Section Leaders cannot assign Zone or Section Leaders.")
+                
         member = serializer.save()
         if member.user:
             member.user.first_name = member.first_name
@@ -167,15 +188,61 @@ class MemberViewSet(BaseMultiTenantViewSet):
             member.user.save()
 
     def get_permissions(self):
-        from members.permissions import IsAdminOrSelf
+        from members.permissions import IsHierarchyAuthorized
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
         if self.action in ['update', 'partial_update']:
-            return [IsAdminOrSelf()]
+            return [IsHierarchyAuthorized()]
         return [IsAdmin()]
+
+    def perform_destroy(self, instance):
+        if instance.user:
+            instance.user.delete()
+        instance.delete()
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdmin])
+    def bulk_delete(self, request):
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'error': 'No ids provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        members = self.get_queryset().filter(id__in=ids)
+        users = [m.user for m in members if m.user]
+        
+        # Delete related users first to maintain integrity
+        for user in users:
+            user.delete()
+            
+        # Delete members
+        deleted_count, _ = members.delete()
+        
+        return Response({'message': f'Successfully deleted {deleted_count} members.'}, status=status.HTTP_200_OK)
 
 from church_profile.models import Organization
 from members.permissions import IsSuperAdmin
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_current_user(request):
+    user = request.user
+    profile = getattr(user, 'member_profile', None)
+    
+    if not profile:
+        return Response({'error': 'Profile not found'}, status=404)
+        
+    return Response({
+        'username': user.username,
+        'role': profile.role,
+        'user_id': user.id,
+        'member_id': profile.id,
+        'first_name': profile.first_name,
+        'last_name': profile.last_name,
+        'status': profile.status,
+        'profile_picture': request.build_absolute_uri(profile.profile_picture.url) if profile.profile_picture else None,
+        'is_temporary_password': profile.is_temporary_password,
+        'org_name': profile.organization.name if profile.organization else '',
+        'org_type': profile.organization.org_type if profile.organization else 'CHURCH'
+    })
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -339,3 +406,77 @@ def resend_otp(request):
         
     except Member.DoesNotExist:
         return Response({'error': 'User with this email not found'}, status=status.HTTP_404_NOT_FOUND)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def request_password_reset(request):
+    email = request.data.get('email')
+    if not email:
+        return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    try:
+        member = Member.objects.get(email=email)
+        if not member.user:
+            return Response({'error': 'Account not fully set up. Contact administrator.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        otp = str(random.randint(100000, 999999))
+        member.otp_code = otp
+        member.otp_created_at = timezone.now()
+        member.save()
+        
+        print(f"==================================================")
+        print(f"MAMS PASSWORD RESET CODE FOR {email}: {otp}")
+        print(f"==================================================")
+        
+        try:
+            send_mail(
+                subject='Your MAMS Password Reset Code',
+                message=f'Hello {member.first_name},\n\nYour MAMS password reset code is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
+                from_email='noreply@mams.local',
+                recipient_list=[email],
+                fail_silently=True,
+            )
+        except Exception as e:
+            print(f"Failed to send email: {e}")
+            
+        return Response({'message': 'A password reset code has been sent to your email.'}, status=status.HTTP_200_OK)
+        
+    except Member.DoesNotExist:
+        # Don't reveal if email exists or not to prevent enumeration
+        return Response({'message': 'If an account with that email exists, a reset code has been sent.'}, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def confirm_password_reset(request):
+    email = request.data.get('email')
+    otp_code = request.data.get('otp_code')
+    new_password = request.data.get('password')
+    
+    if not all([email, otp_code, new_password]):
+        return Response({'error': 'Email, OTP code, and new password are required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    try:
+        member = Member.objects.get(email=email)
+        
+        if not member.otp_code or member.otp_code != otp_code:
+            return Response({'error': 'Invalid verification code'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Check expiry (15 mins)
+        if member.otp_created_at:
+            time_diff = timezone.now() - member.otp_created_at
+            if time_diff.total_seconds() > 900:  # 15 minutes
+                return Response({'error': 'Verification code has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if member.user:
+            member.user.set_password(new_password)
+            member.user.save()
+            
+            member.is_temporary_password = False
+            member.otp_code = None
+            member.save()
+            
+            return Response({'message': 'Password has been successfully reset. You can now log in.'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Account is not linked to a user.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Member.DoesNotExist:
+        return Response({'error': 'Invalid request'}, status=status.HTTP_400_BAD_REQUEST)

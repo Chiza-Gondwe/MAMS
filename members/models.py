@@ -66,6 +66,7 @@ class Member(models.Model):
     last_name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=20, validators=[phone_regex])
+    profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES, null=True, blank=True)

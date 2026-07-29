@@ -55,7 +55,10 @@ export default function Login() {
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Password</label>
+            <div className="flex justify-between items-center mb-2">
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Password</label>
+              <span onClick={() => navigate('/forgot-password')} className="text-xs font-medium text-sky-600 hover:text-sky-700 cursor-pointer transition-colors">Forgot Password?</span>
+            </div>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -94,10 +97,10 @@ export default function Login() {
         </form>
         <div className="mt-8 text-center space-y-2">
           <p className="text-sm text-slate-500">
-            Are you a member? <span onClick={() => navigate('/register')} className="text-sky-600 font-medium hover:text-sky-700 cursor-pointer transition-colors">Join an existing church</span>
+            Are you a member? <span onClick={() => navigate('/register')} className="text-sky-600 font-medium hover:text-sky-700 cursor-pointer transition-colors">Join an existing organization</span>
           </p>
           <p className="text-sm text-slate-500">
-            Are you a Pastor? <span onClick={() => navigate('/register-church')} className="text-indigo-600 font-medium hover:text-indigo-700 cursor-pointer transition-colors">Register a new church</span>
+            Are you a Leader/Admin? <span onClick={() => navigate('/register-church')} className="text-indigo-600 font-medium hover:text-indigo-700 cursor-pointer transition-colors">Register a new organization</span>
           </p>
         </div>
       </div>

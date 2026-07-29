@@ -36,7 +36,14 @@ export default function Sidebar() {
     { path: '/dashboard/settings', label: 'Settings', icon: Settings },
   ];
 
-  let displayNavItems = navItems;
+  let displayNavItems = navItems.map(item => {
+    if (orgType === 'PTA') {
+      if (item.label === 'Sections') return { ...item, label: 'Classes' };
+      if (item.label === 'Zones') return { ...item, label: 'Grades' };
+      if (item.label === 'Groups & Ministries') return { ...item, label: 'Committees & Activities' };
+    }
+    return item;
+  });
 
   if (isSuperadmin) {
     displayNavItems = superadminNavItems;
@@ -67,7 +74,7 @@ export default function Sidebar() {
       displayNavItems = displayNavItems.filter(item => item.label !== 'Students & PTA');
     } else if (orgType === 'PTA') {
       displayNavItems = displayNavItems.filter(item => 
-        !['Sermons & Media', 'Prayer Wall', 'Sections', 'Zones', 'Groups & Ministries'].includes(item.label)
+        !['Sermons & Media', 'Prayer Wall', 'Students & PTA'].includes(item.label)
       );
     }
   }
@@ -106,9 +113,13 @@ export default function Sidebar() {
       
       <div className="p-4 mt-auto border-t border-slate-200/50 shrink-0 relative z-10 bg-white/40 backdrop-blur-md">
         <div className="flex items-center gap-3 w-full group">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-sm font-bold text-white shadow-inner shadow-white/20">
-            {(activeUser?.first_name || activeUser?.username || 'U')[0].toUpperCase()}
-          </div>
+          {activeUser?.profile_picture ? (
+            <img src={activeUser.profile_picture.replace(/^https?:\/\/[^\/]+/, '')} alt="Profile" className="w-10 h-10 rounded-full object-cover shadow-inner shadow-black/20" />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-sm font-bold text-white shadow-inner shadow-white/20">
+              {(activeUser?.first_name || activeUser?.username || 'U')[0].toUpperCase()}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-slate-800 truncate leading-tight group-hover:text-sky-700 transition-colors">
               {activeUser?.first_name || activeUser?.username}

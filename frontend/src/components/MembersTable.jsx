@@ -6,8 +6,10 @@ import { Eye, Edit2, Trash2, Search, Plus, X, Loader, Check, CheckCircle, UserPl
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useAuth } from '../context/AuthContext';
 
 export default function MembersTable() {
+  const { user } = useAuth();
   const [members, setMembers] = useState([]);
   const [sections, setSections] = useState([]);
   const [zones, setZones] = useState([]);
@@ -17,6 +19,7 @@ export default function MembersTable() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sectionFilter, setSectionFilter] = useState('all');
   const [zoneFilter, setZoneFilter] = useState('all');
+  const [ministryFilter, setMinistryFilter] = useState('all');
   const [ministries, setMinistries] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -37,13 +40,15 @@ export default function MembersTable() {
     section_id: '',
     zone_id: '',
     address: '',
-    ministries: []
+    ministries: [],
+    profile_picture: null
   });
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
 
   const [attendanceCount, setAttendanceCount] = useState(0);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState([]);
 
   const exportToExcel = () => {
     const exportData = filtered.map((m, index) => ({
@@ -190,29 +195,44 @@ export default function MembersTable() {
     setFormError('');
     
     try {
-      const memberData = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        phone_number: formData.phone,
-        gender: formData.gender || null,
-        role: formData.role,
-        status: formData.status,
-        ministries: formData.ministries,
-      };
-      
-      if (formData.section_id) {
-        memberData.section = formData.section_id;
+      let payload;
+      if (formData.profile_picture) {
+        payload = new FormData();
+        payload.append('first_name', formData.first_name);
+        payload.append('last_name', formData.last_name);
+        payload.append('email', formData.email);
+        payload.append('phone_number', formData.phone);
+        if (formData.gender) payload.append('gender', formData.gender);
+        payload.append('role', formData.role);
+        payload.append('status', formData.status);
+        if (formData.section_id) payload.append('section', formData.section_id);
+        else payload.append('section', '');
+        if (formData.zone_id) payload.append('zone', formData.zone_id);
+        else payload.append('zone', '');
+        
+        formData.ministries.forEach(m => payload.append('ministries', m));
+        payload.append('profile_picture', formData.profile_picture);
+        
+        if (searchedUser) {
+          payload.append('user', searchedUser.id);
+        }
+      } else {
+        payload = {
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          email: formData.email,
+          phone_number: formData.phone,
+          gender: formData.gender || null,
+          role: formData.role,
+          status: formData.status,
+          ministries: formData.ministries,
+          section: formData.section_id || null,
+          zone: formData.zone_id || null,
+        };
+        if (searchedUser) payload.user = searchedUser.id;
       }
-      if (formData.zone_id) {
-        memberData.zone = formData.zone_id;
-      }
       
-      if (searchedUser) {
-        memberData.user = searchedUser.id;
-      }
-      
-      await api.createMember(memberData);
+      await api.createMember(payload);
       await loadMembers();
       resetForm();
       setShowAddModal(false);
@@ -230,25 +250,39 @@ export default function MembersTable() {
     setFormError('');
     
     try {
-      const updateData = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        phone_number: formData.phone,
-        gender: formData.gender || null,
-        role: formData.role,
-        status: formData.status,
-        ministries: formData.ministries,
-      };
-      
-      if (formData.section_id) {
-        updateData.section = formData.section_id;
+      let payload;
+      if (formData.profile_picture) {
+        payload = new FormData();
+        payload.append('first_name', formData.first_name);
+        payload.append('last_name', formData.last_name);
+        payload.append('email', formData.email);
+        payload.append('phone_number', formData.phone);
+        if (formData.gender) payload.append('gender', formData.gender);
+        payload.append('role', formData.role);
+        payload.append('status', formData.status);
+        if (formData.section_id) payload.append('section', formData.section_id);
+        else payload.append('section', '');
+        if (formData.zone_id) payload.append('zone', formData.zone_id);
+        else payload.append('zone', '');
+        
+        formData.ministries.forEach(m => payload.append('ministries', m));
+        payload.append('profile_picture', formData.profile_picture);
+      } else {
+        payload = {
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          email: formData.email,
+          phone_number: formData.phone,
+          gender: formData.gender || null,
+          role: formData.role,
+          status: formData.status,
+          ministries: formData.ministries,
+          section: formData.section_id || null,
+          zone: formData.zone_id || null,
+        };
       }
-      if (formData.zone_id) {
-        updateData.zone = formData.zone_id;
-      }
       
-      await api.updateMember(selectedMember.id, updateData);
+      await api.updateMember(selectedMember.id, payload);
       await loadMembers();
       resetForm();
       setShowEditModal(false);
@@ -266,6 +300,37 @@ export default function MembersTable() {
       await loadMembers();
     } catch (error) {
       alert(error.message || 'Failed to approve member');
+    }
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedMembers(filtered.map(m => m.id));
+    } else {
+      setSelectedMembers([]);
+    }
+  };
+
+  const handleSelectMember = (id) => {
+    setSelectedMembers(prev => 
+      prev.includes(id) ? prev.filter(mId => mId !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedMembers.length === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedMembers.length} members?`)) return;
+    
+    try {
+      setFormLoading(true);
+      await api.bulkDeleteMembers(selectedMembers);
+      setSelectedMembers([]);
+      await loadMembers();
+    } catch (error) {
+      console.error(error);
+      alert('Failed to bulk delete members');
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -299,7 +364,8 @@ export default function MembersTable() {
       section_id: member.section || member.section_id || '',
       zone_id: member.zone || member.zone_id || '',
       address: member.address || '',
-      ministries: member.ministries || []
+      ministries: member.ministries || [],
+      profile_picture: null
     });
     setFormError('');
     setShowEditModal(true);
@@ -336,7 +402,8 @@ export default function MembersTable() {
       section_id: '',
       zone_id: '',
       address: '',
-      ministries: []
+      ministries: [],
+      profile_picture: null
     });
     setEmailSearch('');
     setSearchedUser(null);
@@ -356,82 +423,116 @@ export default function MembersTable() {
     const matchesSection = sectionFilter === 'all' || String(memberSectionId) === String(sectionFilter);
     const matchesZone = zoneFilter === 'all' || String(memberZoneId) === String(zoneFilter);
     
-    return matchesSearch && matchesRole && matchesStatus && matchesSection && matchesZone;
+    // Check if the member has the selected ministry
+    const matchesMinistry = ministryFilter === 'all' || 
+      (m.ministries_details && m.ministries_details.some(min => String(min.id) === String(ministryFilter))) ||
+      (m.ministries && m.ministries.some(minId => String(minId) === String(ministryFilter)));
+    
+    return matchesSearch && matchesRole && matchesStatus && matchesSection && matchesZone && matchesMinistry;
   });
 
   return (
     <div className="py-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-base font-medium text-slate-700">Members</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Manage church and PTA members</p>
+      <div className="mb-6 space-y-4">
+        {/* Header Title & Primary Action */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Members Directory</h2>
+            <p className="text-sm text-slate-500 mt-1">Manage, filter, and organize your {user?.org_type === 'PTA' ? 'PTA' : 'church'} members</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button 
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-sm"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 shadow-xl rounded-lg py-1.5 z-20 overflow-hidden transform origin-top-right transition-all">
+                  <button 
+                    onClick={exportToExcel}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                  >
+                    Export to Excel
+                  </button>
+                  <button 
+                    onClick={exportToPDF}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                  >
+                    Export to PDF
+                  </button>
+                </div>
+              )}
+            </div>
+            <button 
+              onClick={() => { resetForm(); setShowAddModal(true); }} 
+              className="btn-primary flex items-center gap-2 py-2 px-4 shadow-sm shadow-sky-200 hover:shadow-sky-300 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Add Member
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <div className="relative flex items-center">
-            <Search className="absolute left-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+
+        {/* Filters Toolbar */}
+        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[240px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search members..."
+              placeholder="Search by name or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md w-48 focus:outline-none focus:border-sky-300"
+              className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-400 transition-all bg-slate-50/50 hover:bg-white"
             />
           </div>
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="select-filter text-sm">
-            <option value="all">All roles</option>
-            <option value="member">Regular Member</option>
-            <option value="pta">PTA</option>
-            <option value="section_admin">Section Leader</option>
-            <option value="zone_admin">Zone Leader</option>
-            <option value="admin">Admin</option>
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="select-filter text-sm">
-            <option value="all">All status</option>
-            <option value="active">Active</option>
-            <option value="pending_review">Pending Review</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <select value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value)} className="select-filter text-sm max-w-[120px]">
-            <option value="all">All sections</option>
-            {sections.map(sec => <option key={sec.id} value={sec.id}>{sec.name}</option>)}
-          </select>
-          <select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} className="select-filter text-sm max-w-[120px]">
-            <option value="all">All zones</option>
-            {zones.map(zone => <option key={zone.id} value={zone.id}>{zone.name}</option>)}
-          </select>
-          <div className="relative">
-            <button 
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Export
-            </button>
-            {showExportMenu && (
-              <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 shadow-lg rounded-md py-1 z-10">
-                <button 
-                  onClick={exportToExcel}
-                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  Export to Excel
-                </button>
-                <button 
-                  onClick={exportToPDF}
-                  className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  Export to PDF
-                </button>
-              </div>
-            )}
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="select-filter text-sm bg-slate-50/50 hover:bg-white border-slate-200 py-2 rounded-lg">
+              <option value="all">All Roles</option>
+              <option value="member">Regular Member</option>
+              {user?.org_type === 'PTA' && <option value="pta">PTA</option>}
+              <option value="group_leader">Group Leader</option>
+              <option value="section_admin">{user?.org_type === 'PTA' ? 'Class Representative' : 'Section Leader'}</option>
+              <option value="zone_admin">{user?.org_type === 'PTA' ? 'Grade Representative' : 'Zone Leader'}</option>
+              <option value="admin">Admin</option>
+            </select>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="select-filter text-sm bg-slate-50/50 hover:bg-white border-slate-200 py-2 rounded-lg">
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="pending_review">Pending Review</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <select value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value)} className="select-filter text-sm bg-slate-50/50 hover:bg-white border-slate-200 py-2 rounded-lg max-w-[140px]">
+              <option value="all">{user?.org_type === 'PTA' ? 'All Classes' : 'All Sections'}</option>
+              {sections.map(sec => <option key={sec.id} value={sec.id}>{sec.name}</option>)}
+            </select>
+            <select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)} className="select-filter text-sm bg-slate-50/50 hover:bg-white border-slate-200 py-2 rounded-lg max-w-[140px]">
+              <option value="all">{user?.org_type === 'PTA' ? 'All Grades' : 'All Zones'}</option>
+              {zones.map(zone => <option key={zone.id} value={zone.id}>{zone.name}</option>)}
+            </select>
+            <select value={ministryFilter} onChange={(e) => setMinistryFilter(e.target.value)} className="select-filter text-sm bg-slate-50/50 hover:bg-white border-slate-200 py-2 rounded-lg max-w-[140px]">
+              <option value="all">{user?.org_type === 'PTA' ? 'All Committees' : 'All Groups'}</option>
+              {ministries.map(min => <option key={min.id} value={min.id}>{min.name}</option>)}
+            </select>
           </div>
-          <button 
-            onClick={() => { resetForm(); setShowAddModal(true); }} 
-            className="btn-primary flex items-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Member
-          </button>
         </div>
+        
+        {/* Bulk Actions Toolbar */}
+        {selectedMembers.length > 0 && (
+          <div className="bg-sky-50 p-3 rounded-xl border border-sky-200 shadow-sm flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+            <span className="text-sm font-medium text-sky-800">{selectedMembers.length} members selected</span>
+            <div className="flex gap-2">
+              <button 
+                onClick={handleBulkDelete}
+                className="bg-white border border-red-200 text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              >
+                Delete Selected
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -445,76 +546,104 @@ export default function MembersTable() {
         </div>
       ) : (
         <div className="glass-card overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-slate-200">
-                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
-                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Email</th>
-                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Role</th>
-                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Joined</th>
-                <th className="text-right py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filtered.map((member, index) => (
-                <tr key={member.id} className="hover:bg-slate-100 transition-colors group even:bg-slate-50/70">
-                  <td className="py-3 px-2 text-sm">
-                    <span className="font-medium text-slate-700">{member.first_name} {member.last_name}</span>
-                    <span className="text-slate-400 text-xs ml-2">#{index + 1}</span>
-                   </td>
-                  <td className="py-3 px-2 text-sm text-slate-500">{member.email || '—'}</td>
-                  <td className="py-3 px-2 text-sm capitalize text-slate-600">{member.role === 'pta' ? 'PTA' : member.role === 'section_admin' ? 'Section Leader' : member.role === 'zone_admin' ? 'Zone Leader' : member.role || 'member'}</td>
-                  <td className="py-3 px-2">
-                    <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${
-                      member.status === 'active' 
-                        ? 'bg-green-50 text-green-700' 
-                        : member.status === 'pending_review'
-                        ? 'bg-orange-50 text-orange-600'
-                        : 'bg-red-50 text-red-600'
-                    }`}>
-                      {member.status === 'pending_review' ? 'Pending Review' : member.status || 'active'}
-                    </span>
-                   </td>
-                  <td className="py-3 px-2 text-sm text-slate-500">{formatDate(member.date_joined)}</td>
-                  <td className="py-3 px-2 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {member.status === 'pending_review' && (
-                        <button 
-                          onClick={() => handleApproveMember(member)} 
-                          className="p-1.5 text-slate-400 hover:text-green-600 transition-colors rounded-md hover:bg-green-50"
-                          title="Approve member"
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                        </button>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[800px]">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="py-3 px-3 text-left w-10">
+                    <input 
+                      type="checkbox" 
+                      checked={filtered.length > 0 && selectedMembers.length === filtered.length}
+                      onChange={handleSelectAll}
+                      className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-4 h-4"
+                    />
+                  </th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Email</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Role</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="text-left py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Joined</th>
+                  <th className="text-right py-3 px-2 text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filtered.map((member, index) => (
+                  <tr key={member.id} className="hover:bg-slate-100 transition-colors group even:bg-slate-50/70">
+                    <td className="py-3 px-3">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedMembers.includes(member.id)}
+                        onChange={() => handleSelectMember(member.id)}
+                        className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-4 h-4"
+                      />
+                    </td>
+                    <td className="py-3 px-2 text-sm flex items-center gap-3">
+                      {member.profile_picture ? (
+                        <img src={member.profile_picture.replace(/^https?:\/\/[^\/]+/, '')} alt="" className="w-8 h-8 rounded-full object-cover shadow-sm" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-medium text-xs shadow-sm">
+                          {member.first_name?.[0]}{member.last_name?.[0]}
+                        </div>
                       )}
-                      <button 
-                        onClick={() => openViewModal(member)} 
-                        className="p-1.5 text-slate-400 hover:text-sky-600 transition-colors rounded-md hover:bg-slate-200"
-                        title="View details"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button 
-                        onClick={() => openEditModal(member)} 
-                        className="p-1.5 text-slate-400 hover:text-sky-600 transition-colors rounded-md hover:bg-slate-200"
-                        title="Edit member"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button 
-                        onClick={() => openDeleteModal(member)} 
-                        className="p-1.5 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-200"
-                        title="Delete member"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                   </td>
+                      <div>
+                        <div className="font-medium text-slate-700 whitespace-nowrap">{member.first_name} {member.last_name} <span className="text-slate-400 text-xs ml-1">#{index + 1}</span></div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-2 text-sm text-slate-500 whitespace-nowrap">{member.email || '—'}</td>
+                    <td className="py-3 px-2 text-sm capitalize text-slate-600 whitespace-nowrap">{member.role === 'pta' ? 'PTA' : member.role === 'section_admin' ? 'Section Leader' : member.role === 'zone_admin' ? 'Zone Leader' : member.role || 'member'}</td>
+                    <td className="py-3 px-2">
+                      <span className={`inline-block px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${
+                        member.status === 'active' 
+                          ? 'bg-green-50 text-green-700' 
+                          : member.status === 'pending_review'
+                          ? 'bg-orange-50 text-orange-600'
+                          : 'bg-red-50 text-red-600'
+                      }`}>
+                        {member.status === 'pending_review' ? 'Pending Review' : member.status || 'active'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 text-sm text-slate-500 whitespace-nowrap">
+                      {member.created_at ? new Date(member.created_at).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="py-3 px-2 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {member.status === 'pending_review' && (
+                          <button 
+                            onClick={() => handleApproveMember(member)} 
+                            className="p-1.5 text-slate-400 hover:text-green-600 transition-colors rounded-md hover:bg-green-50"
+                            title="Approve member"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => { setSelectedMember(member); setShowViewModal(true); }} 
+                          className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-colors" 
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => openEditModal(member)} 
+                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" 
+                          title="Edit Member"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => { setSelectedMember(member); setShowDeleteModal(true); }} 
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" 
+                          title="Delete Member"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -561,6 +690,15 @@ export default function MembersTable() {
             </div>
 
             <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Profile Picture (Optional)</label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={e => setFormData({...formData, profile_picture: e.target.files[0]})} 
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 focus:outline-none"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-500 mb-1">First name *</label>
@@ -658,10 +796,11 @@ export default function MembersTable() {
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                   >
                     <option value="member">Member</option>
-                    <option value="pta">PTA</option>
-                    <option value="section_admin">Section Leader</option>
-                    <option value="zone_admin">Zone Leader</option>
-                    <option value="admin">Admin</option>
+                    {user?.org_type === 'PTA' && <option value="pta">PTA</option>}
+                    <option value="group_leader">Group Leader</option>
+                    {user?.role !== 'section_admin' && <option value="section_admin">Section Leader</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">Zone Leader</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="admin">Admin</option>}
                   </select>
                 </div>
                 <div>
@@ -730,6 +869,15 @@ export default function MembersTable() {
             </div>
 
             <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Profile Picture (Optional)</label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={e => setFormData({...formData, profile_picture: e.target.files[0]})} 
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 focus:outline-none"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-slate-500 mb-1">First name *</label>
@@ -827,10 +975,11 @@ export default function MembersTable() {
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                   >
                     <option value="member">Member</option>
-                    <option value="pta">PTA</option>
-                    <option value="section_admin">Section Leader</option>
-                    <option value="zone_admin">Zone Leader</option>
-                    <option value="admin">Admin</option>
+                    {user?.org_type === 'PTA' && <option value="pta">PTA</option>}
+                    <option value="group_leader">Group Leader</option>
+                    {user?.role !== 'section_admin' && <option value="section_admin">Section Leader</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">Zone Leader</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="admin">Admin</option>}
                   </select>
                 </div>
                 <div>

@@ -31,17 +31,24 @@ class AnnouncementViewSet(BaseMultiTenantViewSet):
         elif profile.role == 'pta':
             allowed_audiences.append('pta')
             
-        q_filter = Q(audience__in=allowed_audiences)
-        
-        # If user has a section, zone, or ministries, they should also see announcements explicitly targeted to those
+        # 1. Targeted to user's specific domains
+        target_q = Q()
         if profile.section:
-            q_filter |= Q(target_sections=profile.section)
+            target_q |= Q(target_sections=profile.section)
         if profile.zone:
-            q_filter |= Q(target_zones=profile.zone)
+            target_q |= Q(target_zones=profile.zone)
         if profile.ministries.exists():
-            q_filter |= Q(target_ministries__in=profile.ministries.all())
+            target_q |= Q(target_ministries__in=profile.ministries.all())
             
-        return queryset.filter(q_filter).distinct()
+        # 2. Global announcements (no specific targets) AND allowed audience
+        global_q = Q(target_sections__isnull=True) & Q(target_zones__isnull=True) & Q(target_ministries__isnull=True) & Q(audience__in=allowed_audiences)
+        
+        if target_q:
+            final_q = target_q | global_q
+        else:
+            final_q = global_q
+            
+        return queryset.filter(final_q).distinct()
 
     def perform_create(self, serializer):
         profile = self.request.user.member_profile

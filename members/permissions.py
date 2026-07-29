@@ -48,9 +48,11 @@ class IsMember(BasePermission):
             return False
         return request.user.member_profile.status != 'pending_review'
 
-class IsAdminOrSelf(BasePermission):
+class IsHierarchyAuthorized(BasePermission):
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated
+        if not request.user or not request.user.is_authenticated:
+            return False
+        return True
 
     def has_object_permission(self, request, view, obj):
         profile = getattr(request.user, 'member_profile', None)
@@ -58,4 +60,10 @@ class IsAdminOrSelf(BasePermission):
             return False
         if profile.role in ['superadmin', 'admin']:
             return True
-        return obj.user == request.user
+        if obj.user == request.user:
+            return True
+        if profile.role == 'zone_admin':
+            return obj.zone == profile.zone
+        if profile.role == 'section_admin':
+            return obj.section == profile.section
+        return False

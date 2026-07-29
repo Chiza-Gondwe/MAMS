@@ -84,13 +84,16 @@ class PublicChurchViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
                 random_part = str(uuid.uuid4().hex)[:6].upper()
                 org_code = f"{prefix}-C-{random_part}"
                 
-                # Create Church
+                org_type = request.data.get('org_type', 'CHURCH')
+                
+                # Create Organization
                 org = Organization.objects.create(
                     name=church_name,
                     org_code=org_code,
+                    org_type=org_type,
                     address='',
-                    contact_phone=phone,
-                    contact_email=email
+                    phone=phone,
+                    email=email
                 )
                 
                 # Create User (Pastor)

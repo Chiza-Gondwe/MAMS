@@ -9,7 +9,7 @@ def send_event_reminders():
     tomorrow = timezone.now().date() + timedelta(days=1)
     
     # Get all events happening tomorrow
-    upcoming_events = Event.objects.filter(start_time__date=tomorrow)
+    upcoming_events = Event.objects.filter(date=tomorrow)
     if not upcoming_events.exists():
         print("No events tomorrow to remind about.")
         return
@@ -20,7 +20,7 @@ def send_event_reminders():
     for event in upcoming_events:
         payload = {
             "head": f"Reminder: {event.title} Tomorrow!",
-            "body": f"Don't forget! {event.title} is happening tomorrow at {event.start_time.strftime('%I:%M %p')}.",
+            "body": f"Don't forget! {event.title} is happening tomorrow at {event.time.strftime('%I:%M %p')}.",
             "icon": "/logo192.png",
             "data": {"url": "/dashboard/events"}
         }

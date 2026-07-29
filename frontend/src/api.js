@@ -1,5 +1,5 @@
 // api.js - Fixed with proper JWT handling and error responses
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = '/api';
 
 const getToken = () => localStorage.getItem('access_token');
 const getRefreshToken = () => localStorage.getItem('refresh_token');
@@ -34,10 +34,13 @@ const request = async (endpoint, options = {}) => {
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
   
   const makeRequest = async (token) => {
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+    const headers = { ...options.headers };
+    
+    // Automatically set JSON content type if it's not FormData
+    if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
     if (token) headers['Authorization'] = `Bearer ${token}`;
     
     return fetch(url, { ...options, headers });
@@ -84,6 +87,7 @@ export const api = {
   changePassword: (password) => request('/members/change_password/', { method: 'POST', body: JSON.stringify({ password }) }),
   updateMember: (id, data) => request(`/members/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteMember: (id) => request(`/members/${id}/`, { method: 'DELETE' }),
+  bulkDeleteMembers: (ids) => request('/members/bulk_delete/', { method: 'POST', body: JSON.stringify({ ids }) }),
   register: (data) => request('/register/', { method: 'POST', body: JSON.stringify(data) }),
   verifyEmail: (email, otp) => request('/verify-email/', { method: 'POST', body: JSON.stringify({ email, otp }) }),
   resendOtp: (email) => request('/resend-otp/', { method: 'POST', body: JSON.stringify({ email }) }),
@@ -92,6 +96,7 @@ export const api = {
   // Superadmin Organizations
   getSuperadminOrganizations: () => request('/superadmin/organizations/'),
   createSuperadminOrganization: (data) => request('/superadmin/organizations/', { method: 'POST', body: JSON.stringify(data) }),
+  deleteSuperadminOrganization: (id) => request(`/superadmin/organizations/${id}/`, { method: 'DELETE' }),
 
   // Sections
   getSections: () => request('/sections/'),
@@ -220,5 +225,20 @@ searchUserByEmail: async (email) => {
         user_agent: navigator.userAgent
       })
     });
-  }
+  },
+  
+  // Auth
+  getCurrentUser: () => request('/auth/me/'),
+  requestPasswordReset: (email) => request('/password-reset/request/', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  }),
+  confirmPasswordReset: (email, otp_code, password) => request('/password-reset/confirm/', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp_code, password })
+  }),
+  changePassword: (password) => request('/members/change_password/', {
+    method: 'POST',
+    body: JSON.stringify({ password })
+  })
 };

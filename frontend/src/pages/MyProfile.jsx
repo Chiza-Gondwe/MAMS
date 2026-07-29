@@ -1,6 +1,6 @@
 // pages/MyProfile.jsx
 import { useState, useEffect } from 'react';
-import { User, Phone, MapPin, Mail, Settings, Save, Map, Layers, Users } from 'lucide-react';
+import { User, Phone, MapPin, Mail, Settings, Save, Map, Layers, Users, KeyRound, Lock, Camera } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,6 +9,12 @@ export default function MyProfile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  
+  const [newPassword, setNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  
+  const [profilePicFile, setProfilePicFile] = useState(null);
+  const [profilePicPreview, setProfilePicPreview] = useState(null);
   
   const [sections, setSections] = useState([]);
   const [zones, setZones] = useState([]);
@@ -56,9 +62,22 @@ export default function MyProfile() {
         zone_id: myProfile.zone || '',
         ministries: myProfile.ministries || []
       });
+      if (myProfile.profile_picture) {
+        setProfilePicPreview(myProfile.profile_picture.replace(/^https?:\/\/[^\/]+/, ''));
+      }
       setLoading(false);
     }).catch(err => {
       console.error("Failed to load profile", err);
+      // Fallback if API fails to prevent crash
+      setProfile({
+        first_name: user?.username || 'Unknown',
+        last_name: '',
+        email: '',
+        phone_number: '',
+        address: '',
+        status: 'unknown',
+        ministries: []
+      });
       setLoading(false);
     });
   }, [user]);
@@ -66,15 +85,26 @@ export default function MyProfile() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = {
-        email: formData.email,
-        phone_number: formData.phone_number,
-        address: formData.address,
-        ministries: formData.ministries
-      };
-      
-      if (formData.section_id) payload.section = formData.section_id;
-      if (formData.zone_id) payload.zone = formData.zone_id;
+      let payload;
+      if (profilePicFile) {
+        payload = new FormData();
+        payload.append('email', formData.email);
+        payload.append('phone_number', formData.phone_number);
+        payload.append('address', formData.address);
+        if (formData.section_id) payload.append('section', formData.section_id);
+        if (formData.zone_id) payload.append('zone', formData.zone_id);
+        formData.ministries.forEach(m => payload.append('ministries', m));
+        payload.append('profile_picture', profilePicFile);
+      } else {
+        payload = {
+          email: formData.email,
+          phone_number: formData.phone_number,
+          address: formData.address,
+          ministries: formData.ministries
+        };
+        if (formData.section_id) payload.section = formData.section_id;
+        if (formData.zone_id) payload.zone = formData.zone_id;
+      }
 
       await api.updateMember(user.member_id, payload);
       alert("Profile updated successfully!");
@@ -85,7 +115,33 @@ export default function MyProfile() {
     }
   };
 
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setProfilePicFile(file);
+      setProfilePicPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      alert("Password must be at least 6 characters.");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await api.changePassword(newPassword);
+      alert("Password changed successfully!");
+      setNewPassword('');
+    } catch (err) {
+      alert("Failed to change password: " + (err.message || 'Unknown error'));
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   if (loading) return <div className="p-12 text-center text-slate-500">Loading profile...</div>;
+  if (!profile) return <div className="p-12 text-center text-red-500">Error loading profile data.</div>;
 
   return (
     <div className="max-w-3xl mx-auto py-6">
@@ -98,8 +154,18 @@ export default function MyProfile() {
         <div className="p-6 sm:p-8 bg-gradient-to-r from-sky-900 to-indigo-900 text-white relative">
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
           <div className="relative z-10 flex items-center gap-6">
-            <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border-4 border-white/20 backdrop-blur-sm">
-              <User className="w-10 h-10 text-white" />
+            <div className="relative group">
+              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border-4 border-white/20 backdrop-blur-sm overflow-hidden relative">
+                {profilePicPreview ? (
+                  <img src={profilePicPreview} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-10 h-10 text-white" />
+                )}
+                <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                  <Camera className="w-6 h-6 text-white" />
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                </label>
+              </div>
             </div>
             <div>
               <h2 className="text-2xl font-bold">{profile.first_name} {profile.last_name}</h2>
@@ -152,10 +218,10 @@ export default function MyProfile() {
             </div>
           </div>
 
-          {/* Church Affiliations */}
+          {/* Affiliations */}
           {user.org_type !== 'PTA' && (
             <div>
-              <h3 className="text-lg font-semibold text-slate-800 mb-4 border-b pb-2">Church Affiliations</h3>
+              <h3 className="text-lg font-semibold text-slate-800 mb-4 border-b pb-2">Affiliations</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
@@ -204,6 +270,39 @@ export default function MyProfile() {
               </div>
             </div>
           )}
+
+          {/* Security */}
+          <div>
+            <h3 className="text-lg font-semibold text-slate-800 mb-4 border-b pb-2">Security</h3>
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+              <h4 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-indigo-500" /> Change Password
+              </h4>
+              <p className="text-xs text-slate-500 mb-4">Set a new password for your account. It must be at least 6 characters long.</p>
+              
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                <div className="relative w-full max-w-xs">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input 
+                    type="password" 
+                    placeholder="New password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <button 
+                  onClick={handleChangePassword}
+                  disabled={changingPassword || !newPassword}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  {changingPassword ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </div>
+          </div>
 
           <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
             <button className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors">

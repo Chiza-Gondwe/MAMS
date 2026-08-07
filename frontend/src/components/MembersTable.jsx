@@ -9,7 +9,7 @@ import autoTable from 'jspdf-autotable';
 import { useAuth } from '../context/AuthContext';
 
 export default function MembersTable() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [members, setMembers] = useState([]);
   const [sections, setSections] = useState([]);
   const [zones, setZones] = useState([]);
@@ -251,7 +251,7 @@ export default function MembersTable() {
     
     try {
       let payload;
-      if (formData.profile_picture) {
+      if (formData.profile_picture && formData.profile_picture !== 'DELETE') {
         payload = new FormData();
         payload.append('first_name', formData.first_name);
         payload.append('last_name', formData.last_name);
@@ -280,9 +280,13 @@ export default function MembersTable() {
           section: formData.section_id || null,
           zone: formData.zone_id || null,
         };
+        if (formData.profile_picture === 'DELETE') payload.profile_picture = null;
       }
       
       await api.updateMember(selectedMember.id, payload);
+      if (selectedMember.id === user.member_id) {
+        await refreshUser();
+      }
       await loadMembers();
       resetForm();
       setShowEditModal(false);
@@ -871,12 +875,22 @@ export default function MembersTable() {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-slate-500 mb-1">Profile Picture (Optional)</label>
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={e => setFormData({...formData, profile_picture: e.target.files[0]})} 
-                  className="w-full text-sm text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 focus:outline-none"
-                />
+                <div className="flex items-center gap-4">
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={e => setFormData({...formData, profile_picture: e.target.files[0]})} 
+                    className="w-full text-sm text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100 focus:outline-none"
+                  />
+                  {(selectedMember.profile_picture || formData.profile_picture) && formData.profile_picture !== 'DELETE' && (
+                    <button 
+                      onClick={() => setFormData({...formData, profile_picture: 'DELETE'})}
+                      className="text-xs text-rose-500 hover:text-rose-700 font-medium px-2 py-1 bg-rose-50 rounded-md whitespace-nowrap"
+                    >
+                      Remove Photo
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

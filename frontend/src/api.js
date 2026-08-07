@@ -82,10 +82,10 @@ export const api = {
   // Members
   getMembers: (page = 1, search = '') => request(`/members/?page=${page}&search=${search}`),
   getMember: (id) => request(`/members/${id}/`),
-  createMember: (data) => request('/members/', { method: 'POST', body: JSON.stringify(data) }),
+  createMember: (data) => request('/members/', { method: 'POST', body: data instanceof FormData ? data : JSON.stringify(data) }),
   createLocalAdmin: (data) => request('/members/create_local_admin/', { method: 'POST', body: JSON.stringify(data) }),
   changePassword: (password) => request('/members/change_password/', { method: 'POST', body: JSON.stringify({ password }) }),
-  updateMember: (id, data) => request(`/members/${id}/`, { method: 'PATCH', body: JSON.stringify(data) }),
+  updateMember: (id, data) => request(`/members/${id}/`, { method: 'PATCH', body: data instanceof FormData ? data : JSON.stringify(data) }),
   deleteMember: (id) => request(`/members/${id}/`, { method: 'DELETE' }),
   bulkDeleteMembers: (ids) => request('/members/bulk_delete/', { method: 'POST', body: JSON.stringify({ ids }) }),
   register: (data) => request('/register/', { method: 'POST', body: JSON.stringify(data) }),

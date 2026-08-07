@@ -5,7 +5,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
 export default function MyProfile() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -86,7 +86,7 @@ export default function MyProfile() {
     setSaving(true);
     try {
       let payload;
-      if (profilePicFile) {
+      if (profilePicFile && profilePicFile !== 'DELETE') {
         payload = new FormData();
         payload.append('email', formData.email);
         payload.append('phone_number', formData.phone_number);
@@ -104,9 +104,11 @@ export default function MyProfile() {
         };
         if (formData.section_id) payload.section = formData.section_id;
         if (formData.zone_id) payload.zone = formData.zone_id;
+        if (profilePicFile === 'DELETE') payload.profile_picture = null;
       }
 
       await api.updateMember(user.member_id, payload);
+      await refreshUser();
       alert("Profile updated successfully!");
     } catch (err) {
       alert("Failed to update profile: " + (err.message || 'Unknown error'));
@@ -154,18 +156,28 @@ export default function MyProfile() {
         <div className="p-6 sm:p-8 bg-gradient-to-r from-sky-900 to-indigo-900 text-white relative">
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
           <div className="relative z-10 flex items-center gap-6">
-            <div className="relative group">
-              <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border-4 border-white/20 backdrop-blur-sm overflow-hidden relative">
-                {profilePicPreview ? (
-                  <img src={profilePicPreview} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-10 h-10 text-white" />
-                )}
-                <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
-                  <Camera className="w-6 h-6 text-white" />
-                  <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-                </label>
+            <div className="flex flex-col items-center gap-2">
+              <div className="relative group">
+                <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border-4 border-white/20 backdrop-blur-sm overflow-hidden relative">
+                  {profilePicPreview ? (
+                    <img src={profilePicPreview} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-10 h-10 text-white" />
+                  )}
+                  <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                    <Camera className="w-6 h-6 text-white" />
+                    <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                  </label>
+                </div>
               </div>
+              {profilePicPreview && (
+                <button 
+                  onClick={() => { setProfilePicPreview(null); setProfilePicFile('DELETE'); }}
+                  className="text-xs text-rose-200 hover:text-white font-medium bg-black/20 px-2 py-1 rounded-md backdrop-blur-sm transition-colors"
+                >
+                  Remove Photo
+                </button>
+              )}
             </div>
             <div>
               <h2 className="text-2xl font-bold">{profile.first_name} {profile.last_name}</h2>

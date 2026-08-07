@@ -1,5 +1,5 @@
 // components/Sidebar.jsx
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { LayoutDashboard, Users, Calendar, Megaphone, BarChart3, Settings, Mail, CalendarDays, BookOpen, Building2 } from 'lucide-react';
 
 const navItems = [
@@ -112,7 +112,7 @@ export default function Sidebar() {
       </nav>
       
       <div className="p-4 mt-auto border-t border-slate-200/50 shrink-0 relative z-10 bg-white/40 backdrop-blur-md">
-        <div className="flex items-center gap-3 w-full group">
+        <Link to="/dashboard/profile" className="flex items-center gap-3 w-full group cursor-pointer hover:bg-slate-100 p-2 -mx-2 rounded-lg transition-colors">
           {activeUser?.profile_picture ? (
             <img src={activeUser.profile_picture.replace(/^https?:\/\/[^\/]+/, '')} alt="Profile" className="w-10 h-10 rounded-full object-cover shadow-inner shadow-black/20" />
           ) : (
@@ -126,7 +126,7 @@ export default function Sidebar() {
             </p>
             <p className="text-xs text-slate-500 capitalize font-medium">{activeUser.role}</p>
           </div>
-        </div>
+        </Link>
       </div>
     </aside>
   );

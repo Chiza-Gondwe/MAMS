@@ -32,17 +32,22 @@ export const AuthProvider = ({ children }) => {
   });
   const [loading] = useState(false);
 
+  const refreshUser = async () => {
+    if (user && user.username) {
+      try {
+        const data = await api.getCurrentUser();
+        if (data && data.role) {
+          setUser(prev => ({...prev, ...data}));
+        }
+      } catch (err) {
+        console.error('Silent profile update failed', err);
+      }
+    }
+  };
+
   // Silently refresh profile data on mount/refresh
   useEffect(() => {
-    if (user && user.username) {
-      api.getCurrentUser()
-        .then(data => {
-          if (data && data.role) {
-            setUser(prev => ({...prev, ...data}));
-          }
-        })
-        .catch(err => console.error('Silent profile update failed', err));
-    }
+    refreshUser();
   }, []);
 
   const login = async (username, password) => {
@@ -85,7 +90,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

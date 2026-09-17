@@ -138,6 +138,34 @@ from members.models import Member
 from attendance.models import AttendanceSession
 from finances.models import Donation
 
+class MobileDashboardAPIView(APIView):
+    permission_classes = [IsAdmin]
+
+    def get(self, request):
+        if not hasattr(request.user, 'member_profile'):
+            return Response({'error': 'No profile found'}, status=400)
+            
+        org = request.user.member_profile.organization
+        
+        total_members = Member.objects.filter(organization=org, status='active').count()
+        pending_members = Member.objects.filter(organization=org, status='pending_review').count()
+        
+        # Calculate total contributions this month
+        from django.db.models import Sum
+        now = timezone.now()
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        contributions = Donation.objects.filter(
+            organization=org, 
+            status='COMPLETED',
+            created_at__gte=start_of_month
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        
+        return Response({
+            'total_members': total_members,
+            'pending_members': pending_members,
+            'monthly_contributions': contributions
+        })
+
 class AnalyticsAPIView(APIView):
     permission_classes = [IsAdmin]
 

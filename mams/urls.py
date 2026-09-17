@@ -62,10 +62,10 @@ def home(request):
     return HttpResponse("MAMS API is running")
 
 from communications.views import save_webpush_subscription
-from church_profile.views import AnalyticsAPIView
+from church_profile.views import AnalyticsAPIView, MobileDashboardAPIView
 
 from church_profile.views import SuperadminOrganizationViewSet
-from members.views import create_local_admin, change_password, get_current_user, request_password_reset, confirm_password_reset
+from members.views import create_local_admin, change_password, get_current_user, update_my_profile, request_password_reset, confirm_password_reset
 
 router.register(r'superadmin/organizations', SuperadminOrganizationViewSet, basename='superadmin-organization')
 
@@ -76,6 +76,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/register/', register_member, name='register_member'),
     path('api/auth/me/', get_current_user, name='auth_me'),
+    path('api/auth/update_profile/', update_my_profile, name='update_my_profile'),
     path('api/members/create_local_admin/', create_local_admin, name='create_local_admin'),
     path('api/members/change_password/', change_password, name='change_password'),
     path('api/password-reset/request/', request_password_reset, name='request_password_reset'),
@@ -83,6 +84,7 @@ urlpatterns = [
     path('api/verify-email/', verify_email, name='verify_email'),
     path('api/resend-otp/', resend_otp, name='resend_otp'),
     path('api/analytics/', AnalyticsAPIView.as_view(), name='analytics'),
+    path('api/mobile-dashboard/', MobileDashboardAPIView.as_view(), name='mobile_dashboard'),
     path('webpush/', include('webpush.urls')),
     path('api/webpush/subscribe/', save_webpush_subscription, name='save_webpush_subscription'),
     path('api/', include(router.urls)),

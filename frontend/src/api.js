@@ -214,6 +214,13 @@ searchUserByEmail: async (email) => {
   createStudent: (data) => request('/school/students/', { method: 'POST', body: JSON.stringify(data) }),
   deleteStudent: (id) => request(`/school/students/${id}/`, { method: 'DELETE' }),
 
+  // Finances & Contributions
+  getLedgerAccounts: () => request('/finances/ledger/'),
+  createLedgerAccount: (data) => request('/finances/ledger/', { method: 'POST', body: JSON.stringify(data) }),
+  getDonations: () => request('/finances/donations/'),
+  createDonation: (data) => request('/finances/donations/', { method: 'POST', body: JSON.stringify(data) }),
+  deleteDonation: (id) => request(`/finances/donations/${id}/`, { method: 'DELETE' }),
+
   // Web Push
   subscribeToPushNotifications: async (subscription) => {
     return request('/webpush/subscribe/', {

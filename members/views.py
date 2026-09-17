@@ -237,11 +237,56 @@ def get_current_user(request):
         'member_id': profile.id,
         'first_name': profile.first_name,
         'last_name': profile.last_name,
+        'phone_number': profile.phone_number,
+        'email': profile.email,
+        'gender': profile.gender,
+        'address': profile.address,
         'status': profile.status,
         'profile_picture': request.build_absolute_uri(profile.profile_picture.url) if profile.profile_picture else None,
         'is_temporary_password': profile.is_temporary_password,
         'org_name': profile.organization.name if profile.organization else '',
         'org_type': profile.organization.org_type if profile.organization else 'CHURCH'
+    })
+
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
+@api_view(['POST', 'PATCH', 'PUT'])
+@permission_classes([IsAuthenticated])
+def update_my_profile(request):
+    user = request.user
+    profile = getattr(user, 'member_profile', None)
+    if not profile:
+        return Response({'error': 'Profile not found'}, status=404)
+
+    # Allow multipart parser for this specific function since api_view doesn't easily let us set parsers
+    # DRF handles request.data merging request.POST and request.FILES
+
+    # Update User fields if provided
+    if 'first_name' in request.data:
+        user.first_name = request.data['first_name']
+        profile.first_name = request.data['first_name']
+    if 'last_name' in request.data:
+        user.last_name = request.data['last_name']
+        profile.last_name = request.data['last_name']
+    user.save()
+
+    # Update Profile fields
+    if 'phone_number' in request.data: profile.phone_number = request.data['phone_number']
+    if 'gender' in request.data: profile.gender = request.data['gender']
+    if 'address' in request.data: profile.address = request.data['address']
+    if 'latitude' in request.data: profile.latitude = request.data['latitude']
+    if 'longitude' in request.data: profile.longitude = request.data['longitude']
+    
+    if 'profile_picture' in request.FILES:
+        profile.profile_picture = request.FILES['profile_picture']
+    elif request.data.get('remove_picture') == 'true':
+        profile.profile_picture = None
+
+    profile.save()
+
+    return Response({
+        'message': 'Profile updated successfully',
+        'profile_picture': request.build_absolute_uri(profile.profile_picture.url) if profile.profile_picture else None
     })
 
 @api_view(['POST'])

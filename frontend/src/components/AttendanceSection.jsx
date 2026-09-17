@@ -38,7 +38,7 @@ export default function AttendanceSection() {
       '#': index + 1,
       'Member': r.member_name || `Member #${r.member_id}`,
       'Event': r.event_title || 'Service',
-      'Time': formatDateTime(r.checked_in_at),
+      'Time': formatDateTime(r.scanned_at),
       'Status': 'Attended'
     }));
     const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -64,7 +64,7 @@ export default function AttendanceSection() {
         index + 1,
         r.member_name || `Member #${r.member_id}`,
         r.event_title || 'Service',
-        formatDateTime(r.checked_in_at),
+        formatDateTime(r.scanned_at),
         'Attended'
       ]);
     });
@@ -283,19 +283,35 @@ export default function AttendanceSection() {
 
       {/* QR Code display */}
       {qrUrl && selectedSessionForQR && (
-        <div className="mb-5 p-3 border border-slate-200 rounded-md inline-flex items-center gap-3 bg-slate-50/50">
-          <QrCode className="w-5 h-5 text-sky-700" />
-          <img src={qrUrl} alt="QR Code" className="w-12 h-12 border border-slate-200 rounded" />
-          <div>
-            <p className="text-xs font-medium text-slate-700">{selectedSessionForQR.title}</p>
-            <p className="text-xs text-slate-400">Scan for check-in</p>
+        <div className="mb-5 p-4 border border-sky-100 rounded-lg inline-flex items-center gap-4 bg-sky-50 shadow-sm">
+          <div className="bg-white p-2 rounded-lg border border-slate-200">
+            <img src={qrUrl} alt="QR Code" className="w-24 h-24" />
           </div>
-          <button 
-            onClick={() => { setQrUrl(''); setSelectedSessionForQR(null); }}
-            className="ml-2 text-slate-400 hover:text-slate-600"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex flex-col gap-2">
+            <div>
+              <p className="text-sm font-bold text-slate-800">{selectedSessionForQR.title}</p>
+              <p className="text-xs text-slate-500">Scan this code to check in</p>
+            </div>
+            <div className="flex gap-2 mt-1">
+              <a 
+                href={qrUrl} 
+                target="_blank" 
+                rel="noreferrer"
+                download={`session_${selectedSessionForQR.id}_qr.png`}
+                className="text-xs bg-sky-600 hover:bg-sky-700 text-white px-3 py-1.5 rounded flex items-center gap-1.5 transition-colors"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download / Print
+              </a>
+              <button 
+                onClick={() => { setQrUrl(''); setSelectedSessionForQR(null); }}
+                className="text-xs bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 px-3 py-1.5 rounded flex items-center gap-1 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -315,7 +331,7 @@ export default function AttendanceSection() {
               <tr key={rec.id} className="hover:bg-slate-100 transition-colors even:bg-slate-50/70">
                 <td className="py-2 px-2 text-sm text-slate-600">#{index + 1} - {rec.member_name || `Member #${rec.member_id}`}</td>
                 <td className="py-2 px-2 text-sm text-slate-600">{rec.event_title || 'Service'}</td>
-                <td className="py-2 text-sm text-slate-500">{formatDateTime(rec.checked_in_at)}</td>
+                <td className="py-2 text-sm text-slate-500">{formatDateTime(rec.scanned_at)}</td>
                 <td className="py-2">
                   <CheckCircle className="w-3.5 h-3.5 text-green-600" />
                 </td>

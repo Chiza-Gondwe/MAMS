@@ -1,6 +1,6 @@
 // pages/MyProfile.jsx
 import { useState, useEffect } from 'react';
-import { User, Phone, MapPin, Mail, Settings, Save, Map, Layers, Users, KeyRound, Lock, Camera } from 'lucide-react';
+import { User, Phone, MapPin, Mail, Settings, Save, Map, Layers, Users, KeyRound, Lock, Camera, Check } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
@@ -262,22 +262,40 @@ export default function MyProfile() {
                   </select>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                     <Users className="w-4 h-4 text-slate-400" /> Groups & Ministries
                   </label>
-                  <select 
-                    multiple
-                    value={formData.ministries} 
-                    onChange={e => {
-                      const options = [...e.target.selectedOptions];
-                      const values = options.map(opt => parseInt(opt.value));
-                      setFormData({...formData, ministries: values});
-                    }}
-                    className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 min-h-[100px]"
-                  >
-                    {ministriesList.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                  </select>
-                  <p className="text-xs text-slate-500 mt-1">Hold Ctrl (or Cmd on Mac) to select multiple ministries.</p>
+                  
+                  <div className="flex flex-wrap gap-2 p-1">
+                    {ministriesList.map(m => {
+                      const isSelected = (formData.ministries || []).includes(m.id);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => {
+                            const current = formData.ministries || [];
+                            if (isSelected) {
+                              setFormData({...formData, ministries: current.filter(id => id !== m.id)});
+                            } else {
+                              setFormData({...formData, ministries: [...current, m.id]});
+                            }
+                          }}
+                          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 border cursor-pointer ${
+                            isSelected 
+                              ? 'bg-indigo-50 border-indigo-300 text-indigo-700 shadow-sm' 
+                              : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-700'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600" />}
+                          {m.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {ministriesList.length === 0 && (
+                    <p className="text-sm text-slate-500 italic px-1">No groups or ministries available.</p>
+                  )}
                 </div>
               </div>
             </div>

@@ -590,7 +590,7 @@ export default function MembersTable() {
                         </div>
                       )}
                       <div>
-                        <div className="font-medium text-slate-700 whitespace-nowrap">{member.first_name} {member.last_name} <span className="text-slate-400 text-xs ml-1">#{index + 1}</span></div>
+                        <div className="font-medium text-slate-700 whitespace-nowrap">{member.first_name} {member.last_name}</div>
                       </div>
                     </td>
                     <td className="py-3 px-2 text-sm text-slate-500 whitespace-nowrap">{member.email || '—'}</td>

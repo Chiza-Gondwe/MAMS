@@ -86,7 +86,8 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
         model = Member
         fields = [
             'first_name', 'last_name', 'email',
-            'phone_number', 'role', 'status', 'gender', 'password', 'ministries', 'section_id', 'zone_id', 'organization'
+            'phone_number', 'role', 'status', 'gender', 'password', 'ministries', 'section_id', 'zone_id', 'organization',
+            'profile_picture', 'latitude', 'longitude'
         ]
 
     def create(self, validated_data):

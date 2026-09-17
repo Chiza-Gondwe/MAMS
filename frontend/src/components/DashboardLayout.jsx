@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import OverviewMetrics from './OverviewMetrics';
 import MembersTable from './MembersTable';
+import MemberMap from '../pages/MemberMap';
 import AttendanceSection from './AttendanceSection';
 import Announcements from '../pages/Announcements';
 import AnalyticsSection from './AnalyticsSection';
@@ -19,6 +20,7 @@ import Sermons from '../pages/Sermons';
 import PrayerWall from '../pages/PrayerWall';
 import MyProfile from '../pages/MyProfile';
 import Organizations from '../pages/Organizations';
+import Finances from '../pages/Finances';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
@@ -179,6 +181,7 @@ export default function DashboardLayout() {
               </div>
             } />
             <Route path="/members" element={<MembersTable />} />
+            <Route path="/map" element={<MemberMap />} />
             <Route path="/attendance" element={<AttendanceSection />} />
             <Route path="/announcements" element={<Announcements />} />
             <Route path="/analytics" element={<AnalyticsSection />} />
@@ -193,6 +196,7 @@ export default function DashboardLayout() {
             <Route path="/prayer" element={<PrayerWall />} />
             <Route path="/profile" element={<MyProfile />} />
             <Route path="/organizations" element={<Organizations />} />
+            <Route path="/finances" element={<Finances />} />
           </Routes>
         </main>
       </div>

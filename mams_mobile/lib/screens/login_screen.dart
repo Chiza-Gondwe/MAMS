@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
@@ -13,15 +15,53 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final LocalAuthentication auth = LocalAuthentication();
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
   String _currentServerUrl = ApiService.defaultBaseUrl;
+  bool _canCheckBiometrics = false;
+  bool _hasSavedToken = false;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentServerUrl();
+    _checkBiometrics();
+  }
+
+  Future<void> _checkBiometrics() async {
+    final token = await ApiService.getToken();
+    try {
+      final canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
+      final canAuthenticate = canAuthenticateWithBiometrics || await auth.isDeviceSupported();
+      if (mounted) {
+        setState(() {
+          _hasSavedToken = token != null && token.isNotEmpty;
+          _canCheckBiometrics = canAuthenticate;
+        });
+      }
+    } on PlatformException catch (e) {
+      print('Error checking biometrics: $e');
+    }
+  }
+
+  Future<void> _authenticateBiometric() async {
+    try {
+      final authenticated = await auth.authenticate(
+        localizedReason: 'Scan your fingerprint (or face) to log in',
+        biometricOnly: false,
+      );
+      if (authenticated && mounted) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } on PlatformException catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Biometric authentication failed: ${e.message}';
+        });
+      }
+    }
   }
 
   Future<void> _loadCurrentServerUrl() async {
@@ -337,6 +377,39 @@ class _LoginScreenState extends State<LoginScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            if (!_canCheckBiometrics) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Biometrics are not supported or enrolled on this device.')),
+                              );
+                              return;
+                            }
+                            if (!_hasSavedToken) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please sign in with your password first to enable biometric login.')),
+                              );
+                              return;
+                            }
+                            if (!_isLoading) {
+                              _authenticateBiometric();
+                            }
+                          },
+                          icon: const Icon(Icons.fingerprint, color: Colors.white),
+                          label: const Text('Login with Biometrics'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white30),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
                         ),
                       ),
                     ],

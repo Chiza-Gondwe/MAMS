@@ -105,7 +105,13 @@ class _MembersScreenState extends State<MembersScreen> {
                               IconButton(
                                 icon: const Icon(Icons.chat, color: Colors.green),
                                 onPressed: () {
-                                  launchUrl(Uri.parse('https://wa.me/${m['phone_number']}'));
+                                  String phone = m['phone_number'].toString().replaceAll(RegExp(r'\D'), '');
+                                  if (phone.startsWith('0')) {
+                                    phone = '260${phone.substring(1)}';
+                                  } else if (!phone.startsWith('260')) {
+                                    phone = '260$phone';
+                                  }
+                                  launchUrl(Uri.parse('https://wa.me/$phone'));
                                 },
                               ),
                             ]

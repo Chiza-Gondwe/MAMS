@@ -83,8 +83,9 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
               final user = await ApiService.getCurrentUser();
-              if (mounted) Navigator.pop(context); // close dialog
-              if (!user.containsKey('error') && mounted) {
+              if (!context.mounted) return;
+              Navigator.pop(context); // close dialog
+              if (!user.containsKey('error')) {
                 await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(userData: user)));
                 _loadData(); // Reload in case profile picture was updated
               }

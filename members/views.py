@@ -93,6 +93,10 @@ class MemberViewSet(BaseMultiTenantViewSet):
         # BaseMultiTenantViewSet handles the strict isolation to the organization. 
         queryset = super().get_queryset().order_by('-created_at')
         
+        status = self.request.query_params.get('status', None)
+        if status:
+            queryset = queryset.filter(status=status)
+
         if not self.request.user.is_authenticated or not hasattr(self.request.user, 'member_profile'):
             return queryset.none()
             

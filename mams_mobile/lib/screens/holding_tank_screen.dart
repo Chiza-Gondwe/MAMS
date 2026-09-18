@@ -71,28 +71,30 @@ class _HoldingTankScreenState extends State<HoldingTankScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0A1628),
       appBar: AppBar(
         title: const Text('Holding Tank'),
-        backgroundColor: const Color(0xFF0A1628),
+        backgroundColor: const Color(0xFF1F3864),
         foregroundColor: Colors.white,
       ),
       body: _isLoading 
           ? const Center(child: CircularProgressIndicator())
           : _pendingMembers.isEmpty 
-              ? const Center(child: Text('No pending members to approve.'))
+              ? const Center(child: Text('No pending members to approve.', style: TextStyle(color: Colors.white)))
               : ListView.builder(
                   itemCount: _pendingMembers.length,
                   itemBuilder: (context, index) {
                     final member = _pendingMembers[index];
                     return Card(
+                      color: const Color(0xFF1F3864),
                       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: const Color(0xFF0A1628),
                           child: Text(member['first_name'][0], style: const TextStyle(color: Colors.white)),
                         ),
-                        title: Text('${member['first_name']} ${member['last_name']}'),
-                        subtitle: Text(member['email'] ?? 'No email'),
+                        title: Text('${member['first_name']} ${member['last_name']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        subtitle: Text(member['email'] ?? 'No email', style: const TextStyle(color: Colors.white70)),
                         trailing: ElevatedButton(
                           onPressed: () => _approveMember(member['id']),
                           style: ElevatedButton.styleFrom(

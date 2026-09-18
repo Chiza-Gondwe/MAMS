@@ -13,7 +13,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   String _audience = 'all';
-  String _announcementType = 'general';
+  String _announcementType = 'text';
   bool _isLoading = false;
 
   void _submit() async {
@@ -114,13 +114,12 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                         fillColor: Colors.white,
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'all', child: Text('Everyone')),
-                        DropdownMenuItem(value: 'members', child: Text('Members Only')),
-                        DropdownMenuItem(value: 'pta', child: Text('PTA')),
-                        DropdownMenuItem(value: 'youth', child: Text('Youth')),
-                        DropdownMenuItem(value: 'men', child: Text('Men')),
-                        DropdownMenuItem(value: 'women', child: Text('Women')),
-                        DropdownMenuItem(value: 'leaders', child: Text('Leaders Only')),
+                        DropdownMenuItem(value: 'all', child: Text('Everyone (Church & PTA)')),
+                        DropdownMenuItem(value: 'members', child: Text('Church Members Only')),
+                        DropdownMenuItem(value: 'leaders', child: Text('All Leaders')),
+                        DropdownMenuItem(value: 'section_admins', child: Text('Section Leaders Only')),
+                        DropdownMenuItem(value: 'zone_admins', child: Text('Zone Leaders Only')),
+                        DropdownMenuItem(value: 'pta', child: Text('PTA Officials')),
                       ],
                       onChanged: (value) {
                         setState(() => _audience = value!);
@@ -137,10 +136,8 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                         fillColor: Colors.white,
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'general', child: Text('General')),
-                        DropdownMenuItem(value: 'event', child: Text('Event')),
-                        DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
-                        DropdownMenuItem(value: 'prayer', child: Text('Prayer Request')),
+                        DropdownMenuItem(value: 'text', child: Text('Text Announcement')),
+                        DropdownMenuItem(value: 'video', child: Text('Video Link')),
                       ],
                       onChanged: (value) {
                         setState(() => _announcementType = value!);

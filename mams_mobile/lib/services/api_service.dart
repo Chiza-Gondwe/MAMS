@@ -318,6 +318,20 @@ class ApiService {
     }
   }
 
+  static Future<bool> deleteAnnouncement(int id) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http.delete(
+        Uri.parse('$baseUrl/announcements/$id/'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      return response.statusCode == 204;
+    } catch (e) {
+      return false;
+    }
+  }
+
   static Future<Map<String, dynamic>> scanAttendance(
     int sessionId, [
     int? memberId,

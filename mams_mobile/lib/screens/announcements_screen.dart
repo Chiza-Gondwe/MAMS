@@ -114,9 +114,51 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                               style: const TextStyle(color: Colors.black87),
                             ),
                             const SizedBox(height: 16),
-                            Text(
-                              item['created_at']?.substring(0, 10) ?? '',
-                              style: const TextStyle(color: Colors.grey, fontSize: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  item['created_at']?.substring(0, 10) ?? '',
+                                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                ),
+                                if (_isLeader())
+                                  IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Delete Announcement?'),
+                                          content: const Text('Are you sure you want to delete this announcement?'),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(ctx, false),
+                                              child: const Text('Cancel'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(ctx, true),
+                                              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                      if (confirm == true) {
+                                        final success = await ApiService.deleteAnnouncement(item['id']);
+                                        if (success) {
+                                          _fetchAnnouncements();
+                                        } else {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Failed to delete announcement')),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    },
+                                  ),
+                              ],
                             ),
                           ],
                         ),

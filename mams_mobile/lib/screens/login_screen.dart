@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
   String _currentServerUrl = ApiService.defaultBaseUrl;
   bool _canCheckBiometrics = false;
-  bool _hasSavedToken = false;
+  bool _hasVaultCredentials = false;
 
   @override
   void initState() {
@@ -31,13 +31,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _checkBiometrics() async {
-    final token = await ApiService.getToken();
     try {
       final canAuthenticateWithBiometrics = await auth.canCheckBiometrics;
       final canAuthenticate = canAuthenticateWithBiometrics || await auth.isDeviceSupported();
+      final hasVault = await ApiService.hasVaultCredentials();
+      final hasToken = (await ApiService.getToken()) != null;
+
       if (mounted) {
         setState(() {
-          _hasSavedToken = token != null && token.isNotEmpty;
+          _hasVaultCredentials = hasVault || hasToken;
           _canCheckBiometrics = canAuthenticate;
         });
       }
@@ -49,16 +51,54 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _authenticateBiometric() async {
     try {
       final authenticated = await auth.authenticate(
-        localizedReason: 'Scan your fingerprint (or face) to log in',
+        localizedReason: 'Scan your fingerprint or face to unlock MAMS',
         biometricOnly: false,
       );
-      if (authenticated && mounted) {
+
+      if (!authenticated || !mounted) return;
+
+      // Check if we already have a valid session token
+      final token = await ApiService.getToken();
+      if (!mounted) return;
+      if (token != null && token.isNotEmpty) {
         Navigator.pushReplacementNamed(context, '/home');
+        return;
+      }
+
+      // If logged out, retrieve credentials from Secure Vault and log in seamlessly
+      final creds = await ApiService.getVaultCredentials();
+      if (creds != null) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+
+        final result = await ApiService.login(creds['username']!, creds['password']!);
+
+        if (!mounted) return;
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        if (result['success'] == true) {
+          Navigator.pushReplacementNamed(context, '/home');
+        } else {
+          setState(() {
+            _errorMessage = result['error'] ?? 'Biometric login failed. Please enter password.';
+          });
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No saved biometric credentials. Please sign in with password first.')),
+          );
+        }
       }
     } on PlatformException catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Biometric authentication failed: ${e.message}';
+          _errorMessage = 'Biometric authentication error: ${e.message}';
         });
       }
     }
@@ -391,7 +431,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               );
                               return;
                             }
-                            if (!_hasSavedToken) {
+                            if (!_hasVaultCredentials) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('Please sign in with your password first to enable biometric login.')),
                               );

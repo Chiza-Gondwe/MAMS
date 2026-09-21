@@ -85,6 +85,7 @@ urlpatterns = [
     path('api/resend-otp/', resend_otp, name='resend_otp'),
     path('api/analytics/', AnalyticsAPIView.as_view(), name='analytics'),
     path('api/mobile-dashboard/', MobileDashboardAPIView.as_view(), name='mobile_dashboard'),
+    path('api/chat/', include('chat.urls')),
     path('webpush/', include('webpush.urls')),
     path('api/webpush/subscribe/', save_webpush_subscription, name='save_webpush_subscription'),
     path('api/', include(router.urls)),

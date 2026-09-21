@@ -21,6 +21,7 @@ import PrayerWall from '../pages/PrayerWall';
 import MyProfile from '../pages/MyProfile';
 import Organizations from '../pages/Organizations';
 import Finances from '../pages/Finances';
+import GroupChat from '../pages/GroupChat';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
@@ -197,6 +198,7 @@ export default function DashboardLayout() {
             <Route path="/profile" element={<MyProfile />} />
             <Route path="/organizations" element={<Organizations />} />
             <Route path="/finances" element={<Finances />} />
+            <Route path="/chat" element={<GroupChat />} />
           </Routes>
         </main>
       </div>

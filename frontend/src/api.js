@@ -162,9 +162,22 @@ searchUserByEmail: async (email) => {
       ...data
     })
   }),
-  scanAttendance: (sessionId, memberId) => request(`/attendance/sessions/${sessionId}/scan/`, { 
-    method: 'POST', 
-    body: JSON.stringify({ member_id: parseInt(memberId) })
+  scanAttendance: (sessionId, memberId) => {
+    const payload = memberId ? JSON.stringify({ member_id: parseInt(memberId) }) : JSON.stringify({});
+    if (String(sessionId).toLowerCase() === 'today') {
+      return request('/attendance/sessions/scan_today/', {
+        method: 'POST',
+        body: payload
+      });
+    }
+    return request(`/attendance/sessions/${sessionId}/scan/`, { 
+      method: 'POST', 
+      body: payload
+    });
+  },
+  scanTodayAttendance: (memberId) => request('/attendance/sessions/scan_today/', {
+    method: 'POST',
+    body: JSON.stringify(memberId ? { member_id: parseInt(memberId) } : {})
   }),
   getAttendanceRecords: (page = 1, sessionId = '') => request(`/attendance/records/?page=${page}${sessionId ? `&session=${sessionId}` : ''}`),
   
@@ -247,5 +260,20 @@ searchUserByEmail: async (email) => {
   changePassword: (password) => request('/members/change_password/', {
     method: 'POST',
     body: JSON.stringify({ password })
+  }),
+
+  // Group Chat
+  getChatChannels: () => request('/chat/channels/'),
+  getChannelMessages: (channelId, sinceId) => {
+    let url = `/chat/channels/${channelId}/messages/`;
+    if (sinceId) url += `?since_id=${sinceId}`;
+    return request(url);
+  },
+  sendChatMessage: (channelId, content) => request(`/chat/channels/${channelId}/messages/`, {
+    method: 'POST',
+    body: JSON.stringify({ content })
+  }),
+  deleteChatMessage: (messageId) => request(`/chat/messages/${messageId}/`, {
+    method: 'DELETE'
   })
 };

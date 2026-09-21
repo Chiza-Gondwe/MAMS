@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'school',
     'sermons',
     'prayer',
+    'chat',
     'django_apscheduler',
 ]
 

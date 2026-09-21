@@ -8,6 +8,7 @@ import 'announcements_screen.dart';
 import 'members_screen.dart';
 import 'contributions_screen.dart';
 import 'holding_tank_screen.dart';
+import 'chat_channels_screen.dart';
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -90,6 +91,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 _loadData(); // Reload in case profile picture was updated
               }
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.forum_outlined, color: Colors.white),
+            tooltip: 'Group Channels',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatChannelsScreen())),
           ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
@@ -232,6 +238,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           label: 'Member Map',
                           color: const Color(0xFFE91E63),
                           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MemberMapScreen())),
+                        ),
+                        _ActionCard(
+                          icon: Icons.forum_rounded,
+                          label: 'Group Chat',
+                          color: const Color(0xFF00B4D8),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatChannelsScreen())),
                         ),
                       ],
                     ),

@@ -25,18 +25,23 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
       SnackBar(content: Text('Scanned: $rawValue'), duration: const Duration(seconds: 1)),
     );
 
-    if (!rawValue.contains('MAMS-SESSION-') && !rawValue.contains('/scan/')) return;
+    if (!rawValue.contains('MAMS-SESSION-') && !rawValue.contains('/scan/') && !rawValue.contains('MAMS-ATTENDANCE')) return;
 
     setState(() { _isProcessing = true; });
 
     try {
-      int sessionId;
-      if (rawValue.contains('MAMS-SESSION-')) {
-        sessionId = int.parse(rawValue.split('MAMS-SESSION-')[1]);
+      Map<String, dynamic> result;
+      if (rawValue.contains('/scan/today') || rawValue.contains('MAMS-ATTENDANCE-TODAY')) {
+        result = await ApiService.scanTodayAttendance();
       } else {
-        sessionId = int.parse(rawValue.split('/scan/').last);
+        int sessionId;
+        if (rawValue.contains('MAMS-SESSION-')) {
+          sessionId = int.parse(rawValue.split('MAMS-SESSION-')[1]);
+        } else {
+          sessionId = int.parse(rawValue.split('/scan/').last);
+        }
+        result = await ApiService.scanAttendance(sessionId);
       }
-      final result = await ApiService.scanAttendance(sessionId);
       
       if (!mounted) return;
       

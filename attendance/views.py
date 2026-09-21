@@ -25,7 +25,7 @@ class AttendanceSessionViewSet(BaseMultiTenantViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [IsAuthenticated()]
-        if self.action == 'scan':
+        if self.action in ['scan', 'scan_today']:
             return [IsMember()]
         return [IsAdmin()]
 
@@ -43,8 +43,89 @@ class AttendanceSessionViewSet(BaseMultiTenantViewSet):
             session.delete()
             raise APIException(f"QR code generation failed: {str(e)}")
 
+    @action(detail=False, methods=['post'], url_path='scan_today')
+    def scan_today(self, request):
+        user = request.user
+        if not user.is_authenticated or not hasattr(user, 'member_profile'):
+            return Response({'error': 'Member profile required'}, status=status.HTTP_403_FORBIDDEN)
+        
+        requester_profile = user.member_profile
+        org = requester_profile.organization
+        if not org:
+            return Response({'error': 'Organization not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+        member_id = request.data.get('member_id')
+        if member_id:
+            if requester_profile.role == 'admin':
+                try:
+                    member = Member.objects.get(id=member_id, organization=org)
+                except Member.DoesNotExist:
+                    return Response({'error': 'Member not found'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                return Response({'error': 'Only admins can specify a member_id'}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            member = requester_profile
+
+        if member.status != 'active':
+            return Response({'error': 'Inactive member cannot check in'}, status=status.HTTP_403_FORBIDDEN)
+
+        # 1. Find today's session or auto-create one
+        from django.utils import timezone
+        today = timezone.now().date()
+        session = AttendanceSession.objects.filter(organization=org, date=today).first()
+        if not session:
+            # Auto create today's service
+            session = AttendanceSession.objects.create(
+                organization=org,
+                title=f"Service - {today.strftime('%b %d, %Y')}",
+                session_type='church' if getattr(org, 'org_type', 'CHURCH') == 'CHURCH' else 'pta',
+                date=today
+            )
+            try:
+                qr_data = f"http://127.0.0.1:3000/scan/{session.id}"
+                qr = qrcode.make(qr_data)
+                buffer = io.BytesIO()
+                qr.save(buffer, format='PNG')
+                file_name = f"session_{session.id}.png"
+                session.qr_code.save(file_name, ContentFile(buffer.getvalue()), save=True)
+            except Exception:
+                pass
+
+        # 2. Record attendance
+        has_attended_before = AttendanceRecord.objects.filter(member=member).exists()
+        is_first = not has_attended_before
+
+        record, created = AttendanceRecord.objects.get_or_create(
+            session=session,
+            member=member,
+            defaults={'is_first_visit': is_first}
+        )
+
+        total_attendees = session.records.count()
+
+        if not created:
+            return Response({
+                'message': f'You are already checked in for today’s {session.title}!',
+                'session_title': session.title,
+                'session_date': str(session.date),
+                'already_checked_in': True,
+                'total_attendees': total_attendees
+            }, status=status.HTTP_200_OK)
+
+        msg = f'First visit recorded! Welcome to {session.title}' if is_first else f'Attendance recorded! Welcome to {session.title}'
+        return Response({
+            'message': msg,
+            'session_title': session.title,
+            'session_date': str(session.date),
+            'is_first_visit': is_first,
+            'total_attendees': total_attendees
+        }, status=status.HTTP_201_CREATED)
+
     @action(detail=True, methods=['post'], url_path='scan')
     def scan(self, request, pk=None):
+        if pk == 'today':
+            return self.scan_today(request)
+
         session = self.get_object()
         member = None
         requester_profile = getattr(request.user, 'member_profile', None)

@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
+  static const _secureStorage = FlutterSecureStorage();
   // Default URL: localhost:8000 (standard for ADB reverse port-forwarding over USB)
   static const String defaultBaseUrl = 'http://127.0.0.1:8000/api';
 
@@ -70,6 +72,51 @@ class ApiService {
     }
   }
 
+  static Future<void> saveVaultCredentials(String usernameOrEmail, String password) async {
+    try {
+      await _secureStorage.write(key: 'vault_username', value: usernameOrEmail.trim());
+      await _secureStorage.write(key: 'vault_password', value: password);
+      await _secureStorage.write(key: 'vault_enabled', value: 'true');
+    } catch (e) {
+      print('Failed to save vault credentials: $e');
+    }
+  }
+
+  static Future<Map<String, String>?> getVaultCredentials() async {
+    try {
+      final enabled = await _secureStorage.read(key: 'vault_enabled');
+      if (enabled != 'true') return null;
+      final username = await _secureStorage.read(key: 'vault_username');
+      final password = await _secureStorage.read(key: 'vault_password');
+      if (username != null && password != null) {
+        return {'username': username, 'password': password};
+      }
+    } catch (e) {
+      print('Failed to read vault credentials: $e');
+    }
+    return null;
+  }
+
+  static Future<bool> hasVaultCredentials() async {
+    try {
+      final enabled = await _secureStorage.read(key: 'vault_enabled');
+      if (enabled != 'true') return false;
+      final username = await _secureStorage.read(key: 'vault_username');
+      final password = await _secureStorage.read(key: 'vault_password');
+      return username != null && password != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> clearVaultCredentials() async {
+    try {
+      await _secureStorage.delete(key: 'vault_username');
+      await _secureStorage.delete(key: 'vault_password');
+      await _secureStorage.delete(key: 'vault_enabled');
+    } catch (_) {}
+  }
+
   static Future<void> clearTokens() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('access_token');
@@ -84,8 +131,9 @@ class ApiService {
 
   static Future<Map<String, dynamic>> login(
     String usernameOrEmail,
-    String password,
-  ) async {
+    String password, {
+    bool saveToVault = true,
+  }) async {
     try {
       final baseUrl = await getBaseUrl();
       final response = await http
@@ -100,6 +148,9 @@ class ApiService {
 
       if (response.statusCode == 200 && data['access'] != null) {
         await saveTokens(data['access'], data['refresh'] ?? '');
+        if (saveToVault) {
+          await saveVaultCredentials(usernameOrEmail, password);
+        }
         return {'success': true, 'data': data};
       } else {
         String errorMsg = 'Invalid username or password.';
@@ -361,6 +412,34 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> scanTodayAttendance([
+    int? memberId,
+  ]) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final body = memberId != null
+          ? jsonEncode({'member_id': memberId})
+          : jsonEncode({});
+      final response = await http.post(
+        Uri.parse('$baseUrl/attendance/sessions/scan_today/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: body,
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return {'success': true, 'message': data['message'] ?? 'Attendance recorded for today!'};
+      } else {
+        return {'success': false, 'message': data['error'] ?? data['detail'] ?? 'Check-in failed'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
   static Future<List<dynamic>> getMembers() async {
     try {
       final baseUrl = await getBaseUrl();
@@ -404,6 +483,94 @@ class ApiService {
       return [];
     } catch (e) {
       return [];
+    }
+  }
+
+  // --- Group Chat Endpoints ---
+
+  static Future<List<dynamic>> getChatChannels() async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http.get(
+        Uri.parse('$baseUrl/chat/channels/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) return data;
+        if (data is Map && data['results'] is List) return data['results'];
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<List<dynamic>> getChannelMessages(int channelId, {int? sinceId}) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      String url = '$baseUrl/chat/channels/$channelId/messages/';
+      if (sinceId != null) {
+        url += '?since_id=$sinceId';
+      }
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) return data;
+        if (data is Map && data['results'] is List) return data['results'];
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> sendChatMessage(int channelId, String content) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http.post(
+        Uri.parse('$baseUrl/chat/channels/$channelId/messages/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'content': content}),
+      );
+      if (response.statusCode == 201) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<bool> deleteChatMessage(int messageId) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http.delete(
+        Uri.parse('$baseUrl/chat/messages/$messageId/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (_) {
+      return false;
     }
   }
 }

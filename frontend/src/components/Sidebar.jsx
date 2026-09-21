@@ -1,8 +1,9 @@
 import { NavLink, Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, Megaphone, BarChart3, Settings, Mail, CalendarDays, BookOpen, Building2, Banknote, Map } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Megaphone, BarChart3, Settings, Mail, CalendarDays, BookOpen, Building2, Banknote, Map, MessageSquare } from 'lucide-react';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/dashboard/chat', label: 'Group Chat', icon: MessageSquare },
   { path: '/dashboard/members', label: 'Members', icon: Users },
   { path: '/dashboard/map', label: 'Member Map', icon: Map },
   { path: '/dashboard/sections', label: 'Sections', icon: Users },
@@ -51,6 +52,7 @@ export default function Sidebar() {
   } else if (isMember && activeUser.role !== 'section_admin' && activeUser.role !== 'zone_admin' && activeUser.role !== 'group_leader') {
     displayNavItems = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/dashboard/chat', label: 'Group Chat', icon: MessageSquare },
       { path: '/dashboard/events', label: 'Events & Meetings', icon: CalendarDays },
       { path: '/dashboard/sermons', label: 'Sermons & Media', icon: Megaphone },
       { path: '/dashboard/prayer', label: 'Prayer Wall', icon: Users },
@@ -60,6 +62,7 @@ export default function Sidebar() {
   } else if (activeUser.role === 'section_admin' || activeUser.role === 'zone_admin' || activeUser.role === 'group_leader') {
     displayNavItems = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/dashboard/chat', label: 'Group Chat', icon: MessageSquare },
       { path: '/dashboard/members', label: 'Members', icon: Users },
       { path: '/dashboard/map', label: 'Member Map', icon: Map },
       { path: '/dashboard/attendance', label: 'Attendance', icon: Calendar },

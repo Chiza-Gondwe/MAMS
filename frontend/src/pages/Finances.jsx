@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
-import { Banknote, Plus, Search, FileText, CheckCircle2, Calendar } from 'lucide-react';
+import { Banknote, Plus, Search, FileText, CheckCircle2, Calendar, Trash2, Tags } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Finances() {
@@ -16,6 +16,7 @@ export default function Finances() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showLedgerModal, setShowLedgerModal] = useState(false);
+  const [showManageLedgersModal, setShowManageLedgersModal] = useState(false);
   
   const [newDonation, setNewDonation] = useState({
     member_id: '',
@@ -90,6 +91,17 @@ export default function Finances() {
     }
   };
 
+  const handleDeleteLedger = async (id, name) => {
+    if (window.confirm(`Are you sure you want to delete the category "${name}"?`)) {
+      try {
+        await api.deleteLedgerAccount(id);
+        fetchData();
+      } catch (err) {
+        alert("Failed to delete category");
+      }
+    }
+  };
+
   const totalCollected = donations.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
 
   const getMemberName = (memberData) => {
@@ -118,9 +130,12 @@ export default function Finances() {
           <p className="text-sm text-slate-500 mt-1">{isAdmin ? 'Manage and view financial contribution records securely.' : 'View your personal giving history.'}</p>
         </div>
         {isAdmin && (
-          <div className="flex gap-2">
-            <button onClick={() => setShowLedgerModal(true)} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-xl text-sm font-semibold transition-all shadow-sm">
-              Add Category
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setShowManageLedgersModal(true)} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+              <Tags className="w-4 h-4 text-sky-600" /> Manage Categories
+            </button>
+            <button onClick={() => setShowLedgerModal(true)} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+              <Plus className="w-4 h-4" /> Add Category
             </button>
             <button onClick={() => setShowAddModal(true)} className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-sm font-semibold transition-all shadow-sm shadow-indigo-200 flex items-center gap-2">
               <Plus className="w-4 h-4" /> Record Contribution
@@ -137,7 +152,7 @@ export default function Finances() {
             </div>
             <div>
               <p className="text-sm font-medium text-slate-500">Total Recorded</p>
-              <h3 className="text-2xl font-bold text-slate-800 font-mono">${totalCollected.toFixed(2)}</h3>
+              <h3 className="text-2xl font-bold text-slate-800 font-mono">ZK {totalCollected.toFixed(2)}</h3>
             </div>
           </div>
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
@@ -149,14 +164,23 @@ export default function Finances() {
               <h3 className="text-2xl font-bold text-slate-800 font-mono">{donations.length}</h3>
             </div>
           </div>
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-sky-100 flex items-center justify-center text-sky-600">
-              <CheckCircle2 className="w-6 h-6" />
+          <div 
+            onClick={() => setShowManageLedgersModal(true)}
+            className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between hover:border-sky-300 hover:shadow-md transition-all cursor-pointer group"
+            title="Click to manage categories"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-sky-100 flex items-center justify-center text-sky-600 group-hover:bg-sky-200 transition-colors">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-500">Active Categories</p>
+                <h3 className="text-2xl font-bold text-slate-800 font-mono">{ledgers.length}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Active Categories</p>
-              <h3 className="text-2xl font-bold text-slate-800 font-mono">{ledgers.length}</h3>
-            </div>
+            <span className="text-xs font-semibold text-sky-600 group-hover:translate-x-0.5 transition-transform">
+              Manage →
+            </span>
           </div>
         </div>
       )}
@@ -333,6 +357,89 @@ export default function Finances() {
                 <button type="submit" className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-colors shadow-sm">Save</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Categories Modal */}
+      {showManageLedgersModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in-up">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-sky-100 text-sky-600 rounded-lg">
+                  <Tags className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-800">Manage Categories</h3>
+                  <p className="text-xs text-slate-500">View and remove fund categories</p>
+                </div>
+              </div>
+              <button onClick={() => setShowManageLedgersModal(false)} className="text-slate-400 hover:text-slate-600 text-lg font-bold">✕</button>
+            </div>
+            
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {ledgers.length === 0 ? (
+                <div className="py-8 text-center">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                    <Tags className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-600">No active categories</p>
+                  <p className="text-xs text-slate-400 mt-1 mb-4">You haven't created any contribution categories yet.</p>
+                  <button
+                    onClick={() => {
+                      setShowManageLedgersModal(false);
+                      setShowLedgerModal(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 shadow-sm transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Category
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {ledgers.map(ledger => {
+                    const count = donations.filter(d => (typeof d.ledger_account === 'object' ? d.ledger_account?.id : d.ledger_account) === ledger.id).length;
+                    return (
+                      <div key={ledger.id} className="p-3 bg-slate-50/80 hover:bg-slate-100/70 border border-slate-200/70 rounded-xl flex items-center justify-between transition-colors">
+                        <div>
+                          <h4 className="font-semibold text-sm text-slate-800">{ledger.name}</h4>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {count} {count === 1 ? 'record' : 'records'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteLedger(ledger.id, ledger.name)}
+                          className="flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200/60 px-2.5 py-1.5 rounded-lg transition-colors"
+                          title="Delete Category"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Delete
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+              <button
+                onClick={() => {
+                  setShowManageLedgersModal(false);
+                  setShowLedgerModal(true);
+                }}
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add New Category
+              </button>
+              <button
+                onClick={() => setShowManageLedgersModal(false)}
+                className="px-4 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200/60 rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

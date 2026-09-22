@@ -69,12 +69,45 @@ class AttendanceSessionViewSet(BaseMultiTenantViewSet):
         if member.status != 'active':
             return Response({'error': 'Inactive member cannot check in'}, status=status.HTTP_403_FORBIDDEN)
 
-        # 1. Find today's session or auto-create one
         from django.utils import timezone
-        today = timezone.now().date()
-        session = AttendanceSession.objects.filter(organization=org, date=today).first()
+        now = timezone.localtime(timezone.now())
+        today = now.date()
+        current_time = now.time()
+
+        # Get all of today's sessions for this org
+        todays_sessions = AttendanceSession.objects.filter(organization=org, date=today)
+
+        session = None
+
+        if todays_sessions.exists():
+            # 1. Try to find a session whose time window covers right now
+            for s in todays_sessions:
+                if s.start_time and s.end_time:
+                    if s.start_time <= current_time <= s.end_time:
+                        session = s
+                        break
+
+            # 2. If no time-windowed session matched, check if there is only one session
+            #    (with no times set) — use it as a safe fallback
+            if not session:
+                sessions_without_times = todays_sessions.filter(start_time__isnull=True, end_time__isnull=True)
+                if sessions_without_times.count() == 1:
+                    session = sessions_without_times.first()
+                elif not sessions_without_times.exists() and todays_sessions.count() > 0:
+                    # All sessions today have time windows but none matched — between services
+                    # Build a helpful message listing today's services
+                    service_list = ', '.join(
+                        f"{s.title} ({s.start_time.strftime('%H:%M')}–{s.end_time.strftime('%H:%M')})"
+                        for s in todays_sessions.order_by('start_time')
+                    )
+                    return Response({
+                        'error': 'No active service at this time.',
+                        'message': f"No service is currently active. Today's services: {service_list}. Please scan again when your service begins.",
+                        'between_services': True
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. No sessions exist at all today — auto-create one
         if not session:
-            # Auto create today's service
             session = AttendanceSession.objects.create(
                 organization=org,
                 title=f"Service - {today.strftime('%b %d, %Y')}",
@@ -91,7 +124,7 @@ class AttendanceSessionViewSet(BaseMultiTenantViewSet):
             except Exception:
                 pass
 
-        # 2. Record attendance
+        # Record attendance
         has_attended_before = AttendanceRecord.objects.filter(member=member).exists()
         is_first = not has_attended_before
 
@@ -105,7 +138,7 @@ class AttendanceSessionViewSet(BaseMultiTenantViewSet):
 
         if not created:
             return Response({
-                'message': f'You are already checked in for today’s {session.title}!',
+                'message': f"You are already checked in for {session.title}!",
                 'session_title': session.title,
                 'session_date': str(session.date),
                 'already_checked_in': True,

@@ -3,18 +3,13 @@ import { api } from '../api';
 import { formatDateTime } from '../utils';
 import { useAuth } from '../context/AuthContext';
 import { QrCode, Plus, CheckCircle, X, Loader, RefreshCw, AlertCircle, Download, Printer, FileText, Layers } from 'lucide-react';
-import { LineChart, Line, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// Sample trend data - replace with real API data
-const trendData = [
-  { week: 'Week 1', attendance: 42 },
-  { week: 'Week 2', attendance: 48 },
-  { week: 'Week 3', attendance: 55 },
-  { week: 'Week 4', attendance: 62 },
-];
+
+
 
 export default function AttendanceSection() {
   const [sessions, setSessions] = useState([]);
@@ -23,7 +18,9 @@ export default function AttendanceSection() {
   const [error, setError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showScanModal, setShowScanModal] = useState(false);
-  const [newSession, setNewSession] = useState({ title: '', session_type: 'church', date: '' });
+  const [sundayDate, setSundayDate] = useState('');
+  const [sundayType, setSundayType] = useState('church');
+  const [services, setServices] = useState([{ title: '', start_time: '', end_time: '' }]);
   const [qrUrl, setQrUrl] = useState('');
   const [scanMemberId, setScanMemberId] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState('');
@@ -228,23 +225,39 @@ export default function AttendanceSection() {
     return () => clearTimeout(timer);
   }, []);
 
+  const addServiceRow = () => setServices(prev => [...prev, { title: '', start_time: '', end_time: '' }]);
+  const removeServiceRow = (index) => setServices(prev => prev.filter((_, i) => i !== index));
+  const updateService = (index, field, value) => setServices(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s));
+
   const handleCreateSession = async () => {
-    if (!newSession.title || !newSession.date) {
-      setError('Please fill in all fields');
-      return;
-    }
-    
+    if (!sundayDate) { setError('Please select a date'); return; }
+    const validServices = services.filter(s => s.title.trim());
+    if (validServices.length === 0) { setError('Please add at least one service name'); return; }
+
     setCreateLoading(true);
     setError(null);
     try {
-      const data = await api.createSession(newSession);
-      if (data.id) {
-        setQrUrl(`http://127.0.0.1:8000/media/qr_codes/session_${data.id}.png`);
-        setSelectedSessionForQR(data);
-        setShowCreateModal(false);
-        await loadData();
-        // Don't auto-hide QR, let user see it
+      const results = await Promise.all(
+        validServices.map(svc =>
+          api.createSession({
+            title: svc.title.trim(),
+            session_type: sundayType,
+            date: sundayDate,
+            start_time: svc.start_time || null,
+            end_time: svc.end_time || null,
+          })
+        )
+      );
+      const firstCreated = results.find(r => r.id);
+      if (firstCreated) {
+        setQrUrl(`http://127.0.0.1:8000/media/qr_codes/session_${firstCreated.id}.png`);
+        setSelectedSessionForQR(firstCreated);
       }
+      setShowCreateModal(false);
+      setSundayDate('');
+      setSundayType('church');
+      setServices([{ title: '', start_time: '', end_time: '' }]);
+      await loadData();
     } catch (err) {
       console.error('Create session failed:', err);
       setError(err.message || 'Failed to create session');
@@ -372,29 +385,83 @@ export default function AttendanceSection() {
         </div>
       )}
 
-      {/* Real attendance trend chart */}
+      {/* Attendance trend chart */}
       <div className="mb-6 pb-4 border-b border-slate-100">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Attendance per Service</p>
-          <span className="text-xs text-slate-400">Showing last {sessions.length} services</span>
+          <span className="text-xs text-slate-400">
+            {sessions.length > 0 ? `Showing last ${Math.min(sessions.length, 8)} services` : 'No services yet'}
+          </span>
         </div>
-        <ResponsiveContainer width="100%" height={90}>
-          <LineChart data={
-            sessions.length > 0
-              ? sessions.slice(0, 8).map(s => ({
-                  name: s.title,
-                  date: s.date ? new Date(s.date).toLocaleDateString([], { month: 'short', day: 'numeric' }) : s.title,
-                  attendance: records.filter(r => String(r.session) === String(s.id)).length
-                })).reverse()
-              : trendData
-          }>
-            <Line type="monotone" dataKey="attendance" stroke="#0284c7" strokeWidth={2} dot={{ r: 3, fill: '#0284c7' }} />
-            <Tooltip 
-              contentStyle={{ fontSize: '11px', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '6px 10px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
-              labelStyle={{ fontSize: '11px', fontWeight: 'bold' }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+
+        {sessions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-36 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <p className="text-sm font-medium text-slate-400">No services yet</p>
+            <p className="text-xs text-slate-300 mt-0.5">Create a session and start scanning to see trends</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart
+              data={sessions.slice(0, 8).map(s => ({
+                name: s.title,
+                date: s.date ? new Date(s.date).toLocaleDateString([], { month: 'short', day: 'numeric' }) : s.title,
+                attendance: records.filter(r => String(r.session) === String(s.id)).length
+              })).reverse()}
+              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="attendanceGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#0284c7" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#0284c7" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tickLine={false}
+                axisLine={false}
+                interval={0}
+                tickFormatter={v => v.length > 10 ? v.slice(0, 10) + '…' : v}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const d = payload[0].payload;
+                    return (
+                      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px 14px', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: '11px' }}>
+                        <p style={{ fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>{d.name}</p>
+                        <p style={{ color: '#94a3b8', marginBottom: 6 }}>{d.date}</p>
+                        <p style={{ fontWeight: 700, color: '#0284c7', fontSize: '16px', lineHeight: 1 }}>
+                          {d.attendance} <span style={{ fontWeight: 400, fontSize: '11px', color: '#64748b' }}>attended</span>
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="attendance"
+                stroke="#0284c7"
+                strokeWidth={2.5}
+                fill="url(#attendanceGradient)"
+                dot={{ r: 4, fill: '#fff', stroke: '#0284c7', strokeWidth: 2.5 }}
+                activeDot={{ r: 6, fill: '#0284c7', stroke: '#fff', strokeWidth: 2 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       {/* Interactive Service/Session Filter Pills */}
@@ -452,7 +519,7 @@ export default function AttendanceSection() {
                   >
                     <span className="font-semibold">{session.title}</span>
                     <span className={`text-[11px] ${isSelected ? 'text-sky-100' : 'text-slate-400'}`}>
-                      ({session.date})
+                      ({session.date}{session.start_time ? ` · ${session.start_time.slice(0,5)}–${session.end_time?.slice(0,5) || '?'}` : ''})
                     </span>
                     <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                       isSelected ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'
@@ -599,46 +666,112 @@ export default function AttendanceSection() {
 
       {/* Create Session Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50" onClick={() => setShowCreateModal(false)}>
-          <div className="bg-white rounded-lg p-5 w-96 border border-slate-200 shadow-sm" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 p-4" onClick={() => setShowCreateModal(false)}>
+          <div className="bg-white rounded-xl p-5 w-full max-w-lg border border-slate-200 shadow-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-medium text-slate-800">Create attendance session</h3>
+              <div>
+                <h3 className="font-semibold text-slate-800">Plan Sunday Services</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Set up one or more services for a Sunday in one go</p>
+              </div>
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Title</label>
-                <input 
-                  type="text" 
-                  value={newSession.title} 
-                  onChange={e => setNewSession({...newSession, title: e.target.value})} 
-                  className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
-                  placeholder="Sunday Service, PTA Meeting..."
-                />
+
+            <div className="space-y-4">
+              {/* Date + Type Row */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-slate-500 mb-1">Sunday Date</label>
+                  <input
+                    type="date"
+                    value={sundayDate}
+                    onChange={e => setSundayDate(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
+                  />
+                </div>
+                <div className="w-32">
+                  <label className="block text-xs text-slate-500 mb-1">Type</label>
+                  <select
+                    value={sundayType}
+                    onChange={e => setSundayType(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
+                  >
+                    <option value="church">Church</option>
+                    <option value="pta">PTA</option>
+                  </select>
+                </div>
               </div>
+
+              {/* Services Rows */}
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Type</label>
-                <select 
-                  value={newSession.session_type} 
-                  onChange={e => setNewSession({...newSession, session_type: e.target.value})} 
-                  className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
-                >
-                  <option value="church">Church</option>
-                  <option value="pta">PTA</option>
-                </select>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Services</label>
+                  <span className="text-[10px] text-slate-400">Start/end time enables smart QR routing</span>
+                </div>
+                <div className="space-y-2">
+                  {services.map((svc, idx) => (
+                    <div key={idx} className="flex gap-2 items-start p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <div className="flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={svc.title}
+                          onChange={e => updateService(idx, 'title', e.target.value)}
+                          className="w-full px-2.5 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300 bg-white"
+                          placeholder={idx === 0 ? 'Morning Service' : 'Afternoon Service'}
+                        />
+                      </div>
+                      <div className="w-24">
+                        <input
+                          type="time"
+                          value={svc.start_time}
+                          onChange={e => updateService(idx, 'start_time', e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-200 rounded-md text-xs focus:outline-none focus:border-sky-300 bg-white"
+                          title="Start time"
+                        />
+                      </div>
+                      <div className="w-24">
+                        <input
+                          type="time"
+                          value={svc.end_time}
+                          onChange={e => updateService(idx, 'end_time', e.target.value)}
+                          className="w-full px-2 py-1.5 border border-slate-200 rounded-md text-xs focus:outline-none focus:border-sky-300 bg-white"
+                          title="End time"
+                        />
+                      </div>
+                      {services.length > 1 && (
+                        <button
+                          onClick={() => removeServiceRow(idx)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors flex-shrink-0"
+                          title="Remove"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400 pl-1">
+                  <span className="font-medium text-sky-600">Name</span>
+                  <span>·</span>
+                  <span className="font-medium text-sky-600">Start</span>
+                  <span>·</span>
+                  <span className="font-medium text-sky-600">End</span>
+                  <span className="ml-1">(times optional — leave blank for single-service Sundays)</span>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs text-slate-500 mb-1">Date</label>
-                <input 
-                  type="date" 
-                  value={newSession.date} 
-                  onChange={e => setNewSession({...newSession, date: e.target.value})} 
-                  className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
-                />
-              </div>
-              <div className="flex gap-2 pt-2">
+
+              {/* Add Service Button */}
+              <button
+                onClick={addServiceRow}
+                className="w-full py-2 border border-dashed border-slate-300 rounded-lg text-sm text-slate-500 hover:border-sky-400 hover:text-sky-600 hover:bg-sky-50/50 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add another service
+              </button>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-1">
                 <button onClick={handleCreateSession} className="btn-primary flex-1 text-sm py-2" disabled={createLoading}>
                   {createLoading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -646,7 +779,7 @@ export default function AttendanceSection() {
                       Creating...
                     </span>
                   ) : (
-                    'Create & Generate QR'
+                    `Save ${services.filter(s => s.title.trim()).length > 1 ? 'All Services' : 'Session'} & Generate QR`
                   )}
                 </button>
                 <button onClick={() => setShowCreateModal(false)} className="btn-secondary flex-1 text-sm py-2">Cancel</button>

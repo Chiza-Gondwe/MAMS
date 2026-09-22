@@ -53,6 +53,8 @@ export default function Sidebar() {
     displayNavItems = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { path: '/dashboard/chat', label: 'Group Chat', icon: MessageSquare },
+      { path: '/dashboard/members', label: 'Directory', icon: Users },
+      { path: '/dashboard/map', label: 'Member Map', icon: Map },
       { path: '/dashboard/events', label: 'Events & Meetings', icon: CalendarDays },
       { path: '/dashboard/sermons', label: 'Sermons & Media', icon: Megaphone },
       { path: '/dashboard/prayer', label: 'Prayer Wall', icon: Users },

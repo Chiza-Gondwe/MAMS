@@ -1,9 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
-import 'dart:convert';
+import 'location_picker_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -21,13 +20,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late TextEditingController _firstNameController;
   late TextEditingController _lastNameController;
   late TextEditingController _phoneController;
+  late TextEditingController _addressController;
   String _gender = 'M';
   
   File? _profileImage;
   String? _existingProfileImage;
   double? _latitude;
   double? _longitude;
-  bool _isGettingLocation = false;
   bool _removePicture = false;
 
   @override
@@ -36,11 +35,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _firstNameController = TextEditingController(text: widget.userData['first_name'] ?? '');
     _lastNameController = TextEditingController(text: widget.userData['last_name'] ?? '');
     _phoneController = TextEditingController(text: widget.userData['phone_number'] ?? '');
-    
+    _addressController = TextEditingController(text: widget.userData['address'] ?? '');
     if (widget.userData['gender'] != null) {
       _gender = widget.userData['gender'];
     }
-    
     _existingProfileImage = widget.userData['profile_picture'];
   }
 
@@ -50,35 +48,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (pickedFile != null) {
       setState(() {
         _profileImage = File(pickedFile.path);
-        _existingProfileImage = null; // Hide existing if new one taken
+        _existingProfileImage = null;
         _removePicture = false;
-      });
-    }
-  }
-
-  Future<void> _getLocation() async {
-    setState(() { _isGettingLocation = true; _errorMessage = null; _successMessage = null; });
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) throw 'Location services are disabled.';
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) throw 'Location permissions are denied';
-      }
-      if (permission == LocationPermission.deniedForever) throw 'Location permissions are permanently denied.';
-
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      setState(() {
-        _latitude = position.latitude;
-        _longitude = position.longitude;
-        _isGettingLocation = false;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isGettingLocation = false;
       });
     }
   }
@@ -100,11 +71,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'last_name': _lastNameController.text.trim(),
       'phone_number': _phoneController.text.trim(),
       'gender': _gender,
+      'address': _addressController.text.trim(),
+      'latitude': _latitude,
+      'longitude': _longitude,
     };
     
     if (_removePicture) data['remove_picture'] = 'true';
-    if (_latitude != null) data['latitude'] = _latitude;
-    if (_longitude != null) data['longitude'] = _longitude;
 
     final result = await ApiService.updateProfile(data, profileImage: _profileImage);
     
@@ -210,31 +182,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            Center(
-              child: TextButton.icon(
-                onPressed: _isGettingLocation ? null : _getLocation,
-                icon: _isGettingLocation 
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Icon(_latitude != null ? Icons.check_circle : Icons.location_on, 
-                      color: _latitude != null ? Colors.green : Colors.grey.shade700),
-                label: Text(
-                  _latitude != null ? 'Location Updated!' : 'Update GPS Location',
-                  style: TextStyle(color: _latitude != null ? Colors.green : Colors.grey.shade700),
-                ),
-                style: TextButton.styleFrom(
-                  backgroundColor: _latitude != null ? Colors.green.shade50 : Colors.grey.shade200,
-                ),
-              ),
-            ),
-            const SizedBox(height: 32),
             _buildTextField(_firstNameController, 'First Name'),
             const SizedBox(height: 12),
             _buildTextField(_lastNameController, 'Last Name'),
             const SizedBox(height: 12),
             _buildTextField(_phoneController, 'Phone Number', keyboardType: TextInputType.phone),
             const SizedBox(height: 12),
+            // Address field with geocoding note
+            TextField(
+              controller: _addressController,
+              decoration: InputDecoration(
+                labelText: 'Home Address',
+                hintText: 'e.g. House 15, Changachanga, Lusaka',
+                helperText: 'Optional — used as a reference label.',
+                helperStyle: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                prefixIcon: const Icon(Icons.location_on, size: 20, color: Color(0xFF94A3B8)),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Pick on Map button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push<dynamic>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LocationPickerScreen(
+                        initialLat: _latitude,
+                        initialLng: _longitude,
+                      ),
+                    ),
+                  );
+                  if (result != null && result is Map) {
+                    final lat = result['lat'] as double?;
+                    final lng = result['lng'] as double?;
+                    final address = result['address'] as String?;
+                    if (lat != null && lng != null) {
+                      setState(() {
+                        _latitude = lat;
+                        _longitude = lng;
+                        if (address != null && address.isNotEmpty) {
+                          _addressController.text = address;
+                        }
+                      });
+                    }
+                  }
+                },
+                icon: Icon(
+                  _latitude != null ? Icons.edit_location_alt : Icons.add_location_alt,
+                  size: 18,
+                  color: _latitude != null ? const Color(0xFF4F46E5) : Colors.grey.shade600,
+                ),
+                label: Text(
+                  _latitude != null
+                      ? 'Location pinned ✓ — tap to change'
+                      : 'Pick My Home on Map',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _latitude != null ? const Color(0xFF4F46E5) : Colors.grey.shade700,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  side: BorderSide(
+                    color: _latitude != null ? const Color(0xFF4F46E5) : Colors.grey.shade300,
+                  ),
+                  backgroundColor: _latitude != null ? const Color(0xFFEEF2FF) : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            if (_latitude != null || _addressController.text.isNotEmpty)
+              Center(
+                child: TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _latitude = null;
+                      _longitude = null;
+                      _addressController.clear();
+                    });
+                  },
+                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                  label: const Text(
+                    'Delete Location',
+                    style: TextStyle(color: Colors.red, fontSize: 13),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _gender,
+              initialValue: _gender,
               decoration: InputDecoration(
                 labelText: 'Gender',
                 filled: true,

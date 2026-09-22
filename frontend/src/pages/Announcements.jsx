@@ -55,7 +55,7 @@ export default function Announcements() {
     try {
       const payload = { ...formData };
       
-      await api.createAnnouncement(payload, 1);
+      await api.createAnnouncement(payload);
       setIsModalOpen(false);
       setFormData({ title: '', content: '', type: 'text', audience: 'all', target_sections: [], target_zones: [], target_ministries: [], video_url: '' });
       fetchData();

@@ -11,6 +11,8 @@ class AttendanceSession(models.Model):
     title = models.CharField(max_length=200)
     session_type = models.CharField(max_length=20, choices=SESSION_TYPES)
     date = models.DateField()
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
     qr_code = models.ImageField(upload_to='qr_codes/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

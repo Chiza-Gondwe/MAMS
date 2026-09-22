@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -78,7 +79,7 @@ class ApiService {
       await _secureStorage.write(key: 'vault_password', value: password);
       await _secureStorage.write(key: 'vault_enabled', value: 'true');
     } catch (e) {
-      print('Failed to save vault credentials: $e');
+      debugPrint('Failed to save vault credentials: $e');
     }
   }
 
@@ -92,7 +93,7 @@ class ApiService {
         return {'username': username, 'password': password};
       }
     } catch (e) {
-      print('Failed to read vault credentials: $e');
+      debugPrint('Failed to read vault credentials: $e');
     }
     return null;
   }
@@ -364,7 +365,7 @@ class ApiService {
       );
       return response.statusCode == 201;
     } catch (e) {
-      print('Error creating announcement: $e');
+      debugPrint('Error creating announcement: $e');
       return false;
     }
   }

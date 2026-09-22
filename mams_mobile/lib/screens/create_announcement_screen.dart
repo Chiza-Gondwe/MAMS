@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
 class CreateAnnouncementScreen extends StatefulWidget {
-  const CreateAnnouncementScreen({Key? key}) : super(key: key);
+  const CreateAnnouncementScreen({super.key});
 
   @override
   State<CreateAnnouncementScreen> createState() => _CreateAnnouncementScreenState();
@@ -107,7 +107,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     const Text('Audience', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: _audience,
+                      initialValue: _audience,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         filled: true,
@@ -129,7 +129,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                     const Text('Type', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: _announcementType,
+                      initialValue: _announcementType,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         filled: true,

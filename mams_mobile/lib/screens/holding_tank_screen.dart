@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class HoldingTankScreen extends StatefulWidget {
-  const HoldingTankScreen({Key? key}) : super(key: key);
+  const HoldingTankScreen({super.key});
 
   @override
   State<HoldingTankScreen> createState() => _HoldingTankScreenState();

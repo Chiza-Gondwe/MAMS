@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 
 class ChatRoomScreen extends StatefulWidget {
@@ -81,6 +82,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
         _messages.addAll(newMsgs);
         _lastMessageId = _messages.last['id'];
       });
+      SystemSound.play(SystemSoundType.click);
       _scrollToBottom();
     }
   }

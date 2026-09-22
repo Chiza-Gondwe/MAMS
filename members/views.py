@@ -4,9 +4,83 @@ from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.contrib.auth.models import User
+from django.db.models import Q
 from .models import Member, Section, Zone, Ministry
 from .serializers import MemberSerializer, RegisterMemberSerializer, SectionSerializer, ZoneSerializer, ZoneWithSectionsSerializer, UserSerializer, MinistrySerializer
 from .permissions import IsAdmin, IsMember
+import requests as http_requests
+
+
+import re
+
+def geocode_address(address, city='Lusaka', country='Zambia'):
+    """Convert a text address to (latitude, longitude) using smart progressive Nominatim search."""
+    if not address or not address.strip():
+        return None, None
+        
+    clean = address.strip()
+    
+    known_fixes = {
+        r'(?i)\brhodespark\b': 'Rhodes Park',
+        r'(?i)\bwoodlands\b': 'Woodlands',
+        r'(?i)\bchelston\b': 'Chelstone',
+        r'(?i)\bkabulonga\b': 'Kabulonga',
+        r'(?i)\bavondale\b': 'Avondale',
+        r'(?i)\blongacres\b': 'Longacres',
+        r'(?i)\bchilenje\b': 'Chilenje',
+        r'(?i)\bkamwala\b': 'Kamwala',
+        r'(?i)\bmakeni\b': 'Makeni',
+        r'(?i)\broma\b': 'Roma',
+        r'(?i)\bemmasdale\b': 'Emmasdale',
+        r'(?i)\bndeke\b': 'Ndeke',
+    }
+    
+    fixed = clean
+    for pat, rep in known_fixes.items():
+        fixed = re.sub(pat, rep, fixed)
+        
+    # Detect city in address if present
+    target_city = 'Kitwe' if 'kitwe' in clean.lower() else city
+    
+    candidates = []
+    candidates.append(fixed)
+    candidates.append(f"{fixed}, {target_city}, {country}")
+    
+    # Strip leading plot/house numbers e.g. 4148, Plot 12, Stand 44
+    no_plot = re.sub(r'(?i)^(plot|stand|house|no\.?|h/no\.?)?\s*\d+[\w/-]*\s*,?\s*', '', fixed)
+    if no_plot and no_plot != fixed:
+        candidates.append(no_plot)
+        candidates.append(f"{no_plot}, {target_city}, {country}")
+        
+    # Extract road name + area if present (e.g. 'Teak rd Rhodes Park')
+    road_match = re.search(r'(?i)(\w+\s*(?:rd|road|street|st|ave|avenue|way|lane|close|cres|drive|dr))\b', fixed)
+    if road_match:
+        road = road_match.group(1)
+        candidates.append(f"{road}, {target_city}, {country}")
+        candidates.append(f"{road}, {country}")
+        
+    for pat, rep in known_fixes.items():
+        if re.search(pat, clean):
+            candidates.append(f"{rep}, {target_city}, {country}")
+            candidates.append(f"{rep}, {country}")
+            
+    headers = {'User-Agent': 'MAMS-Church-App/1.0 (church management system)'}
+    
+    for q in candidates:
+        try:
+            r = http_requests.get(
+                'https://nominatim.openstreetmap.org/search',
+                params={'q': q, 'format': 'json', 'limit': 1},
+                headers=headers,
+                timeout=5
+            )
+            data = r.json()
+            if data and len(data) > 0:
+                return float(data[0]['lat']), float(data[0]['lon'])
+        except Exception:
+            continue
+            
+    return None, None
 
 class SectionViewSet(BaseMultiTenantViewSet):
     serializer_class = SectionSerializer
@@ -105,14 +179,21 @@ class MemberViewSet(BaseMultiTenantViewSet):
         if profile.role in ['superadmin', 'admin', 'pta']:
             return queryset
         elif profile.role == 'section_admin' and profile.section:
-            return queryset.filter(section=profile.section)
+            return queryset.filter(Q(section=profile.section) | Q(role__in=['superadmin', 'admin']))
         elif profile.role == 'zone_admin' and profile.zone:
-            return queryset.filter(zone=profile.zone)
+            return queryset.filter(Q(zone=profile.zone) | Q(role__in=['superadmin', 'admin']))
         elif profile.role == 'group_leader' and profile.ministries.exists():
-            return queryset.filter(ministries__in=profile.ministries.all()).distinct()
+            return queryset.filter(Q(ministries__in=profile.ministries.all()) | Q(role__in=['superadmin', 'admin'])).distinct()
             
-        # If regular member or unassigned leader, only see themselves
-        return queryset.filter(id=profile.id)
+        # Regular member or unassigned leader:
+        # Sees themselves + church leadership (Admins/Superadmins) + fellow members in their Section (or Zone)
+        q = Q(id=profile.id) | Q(role__in=['superadmin', 'admin'])
+        if profile.section:
+            q |= Q(section=profile.section)
+        elif profile.zone:
+            q |= Q(zone=profile.zone)
+            
+        return queryset.filter(q).distinct()
 
     def perform_create(self, serializer):
         from django.contrib.auth.models import User
@@ -190,6 +271,14 @@ class MemberViewSet(BaseMultiTenantViewSet):
             member.user.first_name = member.first_name
             member.user.last_name = member.last_name
             member.user.save()
+        # Auto-geocode address only if latitude was not explicitly passed
+        if 'latitude' in serializer.validated_data:
+            if serializer.validated_data.get('latitude') is None:
+                Member.objects.filter(id=member.id).update(latitude=None, longitude=None)
+        elif 'address' in serializer.validated_data and member.address:
+            lat, lng = geocode_address(member.address)
+            if lat is not None:
+                Member.objects.filter(id=member.id).update(latitude=lat, longitude=lng)
 
     def get_permissions(self):
         from members.permissions import IsHierarchyAuthorized
@@ -278,8 +367,20 @@ def update_my_profile(request):
     if 'phone_number' in request.data: profile.phone_number = request.data['phone_number']
     if 'gender' in request.data: profile.gender = request.data['gender']
     if 'address' in request.data: profile.address = request.data['address']
-    if 'latitude' in request.data: profile.latitude = request.data['latitude']
-    if 'longitude' in request.data: profile.longitude = request.data['longitude']
+    
+    if 'latitude' in request.data:
+        lat_val = request.data['latitude']
+        profile.latitude = float(lat_val) if lat_val not in [None, '', 'null'] else None
+    if 'longitude' in request.data:
+        lng_val = request.data['longitude']
+        profile.longitude = float(lng_val) if lng_val not in [None, '', 'null'] else None
+        
+    # Auto-geocode address if latitude was not explicitly passed in this request
+    if 'latitude' not in request.data and 'address' in request.data and profile.address:
+        lat, lng = geocode_address(profile.address)
+        if lat is not None:
+            profile.latitude = lat
+            profile.longitude = lng
     
     if 'profile_picture' in request.FILES:
         profile.profile_picture = request.FILES['profile_picture']
@@ -368,6 +469,12 @@ def register_member(request):
     serializer = RegisterMemberSerializer(data=request.data)
     if serializer.is_valid():
         member = serializer.save()
+        # Auto-geocode address if provided and not already explicitly set
+        address = serializer.validated_data.get('address', '')
+        if address and member.latitude is None:
+            lat, lng = geocode_address(address)
+            if lat is not None:
+                Member.objects.filter(id=member.id).update(latitude=lat, longitude=lng)
         return Response({
             'message': 'Registration successful. Please verify your email.',
             'member': MemberSerializer(member).data

@@ -184,7 +184,7 @@ searchUserByEmail: async (email) => {
   // Announcements
   getAnnouncements: (search = '') => request(`/announcements/?search=${search}`),
   getAnnouncement: (id) => request(`/announcements/${id}/`),
-  createAnnouncement: (data, memberId) => request('/announcements/', { 
+  createAnnouncement: (data) => request('/announcements/', { 
     method: 'POST', 
     body: JSON.stringify({
       title: data.title,
@@ -192,7 +192,6 @@ searchUserByEmail: async (email) => {
       announcement_type: data.type || 'text',
       audience: data.audience || 'all',
       video_url: data.video_url || '',
-      created_by: memberId,
       target_section: data.target_section,
       target_zone: data.target_zone
     })
@@ -230,6 +229,7 @@ searchUserByEmail: async (email) => {
   // Finances & Contributions
   getLedgerAccounts: () => request('/finances/ledger/'),
   createLedgerAccount: (data) => request('/finances/ledger/', { method: 'POST', body: JSON.stringify(data) }),
+  deleteLedgerAccount: (id) => request(`/finances/ledger/${id}/`, { method: 'DELETE' }),
   getDonations: () => request('/finances/donations/'),
   createDonation: (data) => request('/finances/donations/', { method: 'POST', body: JSON.stringify(data) }),
   deleteDonation: (id) => request(`/finances/donations/${id}/`, { method: 'DELETE' }),

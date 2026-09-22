@@ -98,7 +98,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.indigo.withOpacity(0.1),
+                                    color: Colors.indigo.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -127,6 +127,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(),
                                     onPressed: () async {
+                                      final messenger = ScaffoldMessenger.of(context);
                                       final confirm = await showDialog<bool>(
                                         context: context,
                                         builder: (ctx) => AlertDialog(
@@ -149,11 +150,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                         if (success) {
                                           _fetchAnnouncements();
                                         } else {
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('Failed to delete announcement')),
-                                            );
-                                          }
+                                          messenger.showSnackBar(
+                                            const SnackBar(content: Text('Failed to delete announcement')),
+                                          );
                                         }
                                       }
                                     },

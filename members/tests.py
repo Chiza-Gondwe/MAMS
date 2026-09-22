@@ -153,24 +153,27 @@ class MemberAPITest(APITestCase):
         response = self.client.delete(reverse('member-detail', kwargs={'pk': self.member_member.id}))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_member_can_only_see_themselves(self):
+    def test_member_scoped_visibility(self):
         self.client.force_authenticate(user=self.member_user)
         
-        # Listing should only return 1 record (their own profile)
+        # Listing should return 2 records (themselves + leadership admin, but not PTA)
         response = self.client.get(reverse('member-list'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['count'], 1)
-        self.assertEqual(response.data['results'][0]['id'], self.member_member.id)
+        self.assertEqual(response.data['count'], 2)
+        member_ids = [m['id'] for m in response.data['results']]
+        self.assertIn(self.member_member.id, member_ids)
+        self.assertIn(self.admin_member.id, member_ids)
+        self.assertNotIn(self.pta_member.id, member_ids)
 
         # Retrieving their own should work
         response = self.client.get(reverse('member-detail', kwargs={'pk': self.member_member.id}))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Retrieving another member's profile should return 404 (as queryset filters them out)
+        # Retrieving leadership admin works for contact / directions
         response = self.client.get(reverse('member-detail', kwargs={'pk': self.admin_member.id}))
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Modifying a profile should return 200 OK for their own profile
+        # Modifying their own profile should return 200 OK
         response = self.client.patch(reverse('member-detail', kwargs={'pk': self.member_member.id}), {'first_name': 'NewName'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 

@@ -30,7 +30,7 @@ export default function AnnouncementsPanel() {
     setLoading(true);
     try {
       // 1 is a dummy memberId for now. A real app would get this from auth context.
-      await api.createAnnouncement(formData, 1);
+      await api.createAnnouncement(formData);
       setIsModalOpen(false);
       setFormData({ title: '', content: '', type: 'text', audience: 'all', video_url: '' });
       fetchAnnouncements();

@@ -1,8 +1,21 @@
 // pages/MyProfile.jsx
-import { useState, useEffect } from 'react';
-import { User, Phone, MapPin, Mail, Settings, Save, Map, Layers, Users, KeyRound, Lock, Camera, Check } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { User, Phone, MapPin, Mail, Settings, Save, Map, Layers, Users, KeyRound, Lock, Camera, Check, LocateFixed, X, Trash2 } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
+
+// Helper: captures map clicks and calls onPick(lat, lng)
+function MapClickHandler({ onPick }) {
+  useMapEvents({
+    click(e) {
+      onPick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
 
 export default function MyProfile() {
   const { user, refreshUser } = useAuth();
@@ -15,6 +28,16 @@ export default function MyProfile() {
   
   const [profilePicFile, setProfilePicFile] = useState(null);
   const [profilePicPreview, setProfilePicPreview] = useState(null);
+
+  // Map location picker
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+  const [pickedLat, setPickedLat] = useState(null);
+  const [pickedLng, setPickedLng] = useState(null);
+  const [tempLat, setTempLat] = useState(null);
+  const [tempLng, setTempLng] = useState(null);
+  const [tempAddress, setTempAddress] = useState('');
+  const [lookingUpAddress, setLookingUpAddress] = useState(false);
+  const [locationCleared, setLocationCleared] = useState(false);
   
   const [sections, setSections] = useState([]);
   const [zones, setZones] = useState([]);
@@ -62,6 +85,10 @@ export default function MyProfile() {
         zone_id: myProfile.zone || '',
         ministries: myProfile.ministries || []
       });
+      if (myProfile.latitude && myProfile.longitude) {
+        setPickedLat(parseFloat(myProfile.latitude));
+        setPickedLng(parseFloat(myProfile.longitude));
+      }
       if (myProfile.profile_picture) {
         setProfilePicPreview(myProfile.profile_picture.replace(/^https?:\/\/[^\/]+/, ''));
       }
@@ -82,6 +109,48 @@ export default function MyProfile() {
     });
   }, [user]);
 
+  const reverseGeocode = async (lat, lng) => {
+    setLookingUpAddress(true);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, {
+        headers: { 'User-Agent': 'MAMS-Church-App/1.0 (church management system)' }
+      });
+      const data = await res.json();
+      if (data && data.address) {
+        const addr = data.address;
+        const road = addr.road || addr.pedestrian || addr.suburb || '';
+        const suburb = addr.suburb || addr.neighbourhood || addr.residential || '';
+        const city = addr.city || addr.town || addr.district || 'Lusaka';
+        const cleanParts = [];
+        if (road) cleanParts.push(road);
+        if (suburb && suburb !== road) cleanParts.push(suburb);
+        if (city && city !== suburb) cleanParts.push(city);
+        cleanParts.push(addr.country || 'Zambia');
+        const formatted = cleanParts.join(', ');
+        setTempAddress(formatted);
+        return formatted;
+      }
+      setTempAddress(data.display_name || '');
+      return data.display_name || '';
+    } catch (err) {
+      console.error("Reverse geocoding error:", err);
+      setTempAddress('');
+      return '';
+    } finally {
+      setLookingUpAddress(false);
+    }
+  };
+
+  const handleClearLocation = () => {
+    setPickedLat(null);
+    setPickedLng(null);
+    setTempLat(null);
+    setTempLng(null);
+    setTempAddress('');
+    setFormData(prev => ({ ...prev, address: '' }));
+    setLocationCleared(true);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -90,17 +159,26 @@ export default function MyProfile() {
         payload = new FormData();
         payload.append('email', formData.email);
         payload.append('phone_number', formData.phone_number);
-        payload.append('address', formData.address);
+        payload.append('address', formData.address || '');
         if (formData.section_id) payload.append('section', formData.section_id);
         if (formData.zone_id) payload.append('zone', formData.zone_id);
         formData.ministries.forEach(m => payload.append('ministries', m));
         payload.append('profile_picture', profilePicFile);
+        if (pickedLat !== null) {
+          payload.append('latitude', pickedLat);
+          payload.append('longitude', pickedLng);
+        } else if (locationCleared) {
+          payload.append('latitude', '');
+          payload.append('longitude', '');
+        }
       } else {
         payload = {
           email: formData.email,
           phone_number: formData.phone_number,
-          address: formData.address,
-          ministries: formData.ministries
+          address: formData.address || '',
+          ministries: formData.ministries,
+          latitude: pickedLat,
+          longitude: pickedLng
         };
         if (formData.section_id) payload.section = formData.section_id;
         if (formData.zone_id) payload.zone = formData.zone_id;
@@ -109,6 +187,7 @@ export default function MyProfile() {
 
       await api.updateMember(user.member_id, payload);
       await refreshUser();
+      setLocationCleared(false);
       alert("Profile updated successfully!");
     } catch (err) {
       alert("Failed to update profile: " + (err.message || 'Unknown error'));
@@ -200,6 +279,9 @@ export default function MyProfile() {
                 </label>
                 <input 
                   type="email" 
+                  name="email"
+                  id="profile_email"
+                  autoComplete="email"
                   value={formData.email} 
                   onChange={e => setFormData({...formData, email: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400" 
@@ -211,24 +293,193 @@ export default function MyProfile() {
                 </label>
                 <input 
                   type="text" 
+                  name="phone"
+                  id="profile_phone"
+                  autoComplete="tel"
                   value={formData.phone_number} 
                   onChange={e => setFormData({...formData, phone_number: e.target.value})}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400" 
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-slate-400" /> Home Address
+                <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-slate-400" /> Home Address
+                  </span>
+                  {pickedLat && (
+                    <span className="text-[11px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-medium flex items-center gap-1">
+                      <Check className="w-3 h-3" /> Pinned on map
+                    </span>
+                  )}
                 </label>
-                <input 
-                  type="text" 
-                  value={formData.address} 
-                  onChange={e => setFormData({...formData, address: e.target.value})}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400" 
-                />
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    name="home_address"
+                    id="profile_home_address"
+                    autoComplete="street-address"
+                    value={formData.address} 
+                    onChange={e => {
+                      setFormData({...formData, address: e.target.value});
+                      setLocationCleared(false);
+                    }}
+                    placeholder="e.g. House 15, Changachanga Road, Lusaka"
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 pr-10" 
+                  />
+                  {formData.address && (
+                    <button
+                      type="button"
+                      title="Clear address text"
+                      onClick={() => setFormData({...formData, address: ''})}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempLat(pickedLat);
+                      setTempLng(pickedLng);
+                      setTempAddress(formData.address || '');
+                      setMapPickerOpen(true);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      pickedLat
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <LocateFixed className={`w-3.5 h-3.5 ${pickedLat ? 'text-indigo-500' : 'text-slate-400'}`} />
+                    {pickedLat ? 'Move Pin on Map' : 'Pick Pin on Map'}
+                  </button>
+
+                  {(pickedLat || formData.address) && (
+                    <button
+                      type="button"
+                      onClick={handleClearLocation}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                      Delete Location
+                    </button>
+                  )}
+
+                  {pickedLat && (
+                    <span className="text-xs text-slate-500 font-mono bg-slate-100 px-2 py-1 rounded">
+                      📍 {pickedLat.toFixed(4)}, {pickedLng.toFixed(4)}
+                    </span>
+                  )}
+
+                  {locationCleared && (
+                    <span className="text-xs text-amber-600 font-medium">
+                      Location removed — click Save Changes to apply.
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
+
+          {/* Map Picker Modal */}
+          {mapPickerOpen && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col" style={{ height: '80vh' }}>
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-base">Pick Your Home Location</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Click anywhere on the map — your address will fill in automatically</p>
+                  </div>
+                  <button onClick={() => setMapPickerOpen(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Map */}
+                <div className="flex-1 relative">
+                  <MapContainer
+                    center={tempLat ? [tempLat, tempLng] : [-15.3875, 28.3228]}
+                    zoom={14}
+                    style={{ height: '100%', width: '100%' }}
+                  >
+                    <TileLayer
+                      attribution='&copy; OpenStreetMap contributors'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <MapClickHandler onPick={(lat, lng) => {
+                      setTempLat(lat);
+                      setTempLng(lng);
+                      reverseGeocode(lat, lng);
+                    }} />
+                    {tempLat && (
+                      <Marker
+                        position={[tempLat, tempLng]}
+                        icon={L.divIcon({
+                          className: '',
+                          html: `<div style="color:#4F46E5;font-size:40px;line-height:1;margin-top:-36px;margin-left:-12px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">📍</div>`,
+                          iconSize: [24, 40],
+                          iconAnchor: [12, 40],
+                        })}
+                      />
+                    )}
+                  </MapContainer>
+                  {!tempLat && (
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] bg-white rounded-full px-4 py-2 shadow-lg text-sm text-slate-600 flex items-center gap-2 pointer-events-none">
+                      <LocateFixed className="w-4 h-4 text-indigo-500" />
+                      Click on the map to place your pin
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-5 py-4 border-t border-slate-100 gap-3">
+                  <div className="min-w-0 flex-1">
+                    {tempLat ? (
+                      <div>
+                        <p className="text-xs font-semibold text-slate-800 flex items-center gap-1.5 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                          {lookingUpAddress ? 'Looking up address...' : (tempAddress || `${tempLat.toFixed(5)}, ${tempLng.toFixed(5)}`)}
+                        </p>
+                        <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                          {tempLat.toFixed(5)}, {tempLng.toFixed(5)}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400">No spot selected yet</p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 ml-auto flex-shrink-0">
+                    <button
+                      onClick={() => setMapPickerOpen(false)}
+                      className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-lg border border-slate-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      disabled={!tempLat}
+                      onClick={() => {
+                        setPickedLat(tempLat);
+                        setPickedLng(tempLng);
+                        if (tempAddress) {
+                          setFormData(prev => ({ ...prev, address: tempAddress }));
+                        }
+                        setLocationCleared(false);
+                        setMapPickerOpen(false);
+                      }}
+                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4" />
+                      Confirm Location
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Affiliations */}
           {user.org_type !== 'PTA' && (
@@ -317,6 +568,8 @@ export default function MyProfile() {
                   </div>
                   <input 
                     type="password" 
+                    name="new_password"
+                    autoComplete="new-password"
                     placeholder="New password"
                     value={newPassword}
                     onChange={e => setNewPassword(e.target.value)}

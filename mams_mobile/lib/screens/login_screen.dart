@@ -44,7 +44,7 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     } on PlatformException catch (e) {
-      print('Error checking biometrics: $e');
+      debugPrint('Error checking biometrics: $e');
     }
   }
 

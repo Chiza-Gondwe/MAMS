@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { formatDate } from '../utils';
-import { Eye, Edit2, Trash2, Search, Plus, X, Loader, Check, CheckCircle, UserPlus, Users, AlertCircle, Download } from 'lucide-react';
+import { Eye, Edit2, Trash2, Search, Plus, X, Loader, Check, CheckCircle, UserPlus, Users, AlertCircle, Download, Navigation } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -10,6 +10,10 @@ import { useAuth } from '../context/AuthContext';
 
 export default function MembersTable() {
   const { user, refreshUser } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const isLeader = ['section_admin', 'zone_admin', 'group_leader'].includes(user?.role);
+  const canManage = isAdmin || isLeader;
+
   const [members, setMembers] = useState([]);
   const [sections, setSections] = useState([]);
   const [zones, setZones] = useState([]);
@@ -209,6 +213,7 @@ export default function MembersTable() {
         else payload.append('section', '');
         if (formData.zone_id) payload.append('zone', formData.zone_id);
         else payload.append('zone', '');
+        payload.append('address', formData.address || '');
         
         formData.ministries.forEach(m => payload.append('ministries', m));
         payload.append('profile_picture', formData.profile_picture);
@@ -228,6 +233,7 @@ export default function MembersTable() {
           ministries: formData.ministries,
           section: formData.section_id || null,
           zone: formData.zone_id || null,
+          address: formData.address || '',
         };
         if (searchedUser) payload.user = searchedUser.id;
       }
@@ -264,6 +270,7 @@ export default function MembersTable() {
         else payload.append('section', '');
         if (formData.zone_id) payload.append('zone', formData.zone_id);
         else payload.append('zone', '');
+        payload.append('address', formData.address || '');
         
         formData.ministries.forEach(m => payload.append('ministries', m));
         payload.append('profile_picture', formData.profile_picture);
@@ -279,6 +286,7 @@ export default function MembersTable() {
           ministries: formData.ministries,
           section: formData.section_id || null,
           zone: formData.zone_id || null,
+          address: formData.address || '',
         };
         if (formData.profile_picture === 'DELETE') payload.profile_picture = null;
       }
@@ -441,43 +449,51 @@ export default function MembersTable() {
         {/* Header Title & Primary Action */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Members Directory</h2>
-            <p className="text-sm text-slate-500 mt-1">Manage, filter, and organize your {user?.org_type === 'PTA' ? 'PTA' : 'church'} members</p>
+            <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
+              {canManage ? 'Members Directory' : 'Congregation Directory'}
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              {canManage 
+                ? `Manage, filter, and organize your ${user?.org_type === 'PTA' ? 'PTA' : 'church'} members`
+                : 'Browse fellow members and church leadership for fellowship, prayer, and visits'}
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="relative">
+          {canManage && (
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <button 
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
+                {showExportMenu && (
+                  <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 shadow-xl rounded-lg py-1.5 z-20 overflow-hidden transform origin-top-right transition-all">
+                    <button 
+                      onClick={exportToExcel}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                    >
+                      Export to Excel
+                    </button>
+                    <button 
+                      onClick={exportToPDF}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                    >
+                      Export to PDF
+                    </button>
+                  </div>
+                )}
+              </div>
               <button 
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                className="bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shadow-sm"
+                onClick={() => { resetForm(); setShowAddModal(true); }} 
+                className="btn-primary flex items-center gap-2 py-2 px-4 shadow-sm shadow-sky-200 hover:shadow-sky-300 transition-all"
               >
-                <Download className="w-4 h-4" />
-                Export
+                <Plus className="w-4 h-4" />
+                Add Member
               </button>
-              {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 shadow-xl rounded-lg py-1.5 z-20 overflow-hidden transform origin-top-right transition-all">
-                  <button 
-                    onClick={exportToExcel}
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition-colors"
-                  >
-                    Export to Excel
-                  </button>
-                  <button 
-                    onClick={exportToPDF}
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition-colors"
-                  >
-                    Export to PDF
-                  </button>
-                </div>
-              )}
             </div>
-            <button 
-              onClick={() => { resetForm(); setShowAddModal(true); }} 
-              className="btn-primary flex items-center gap-2 py-2 px-4 shadow-sm shadow-sky-200 hover:shadow-sky-300 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Add Member
-            </button>
-          </div>
+          )}
         </div>
 
         {/* Filters Toolbar */}
@@ -610,15 +626,17 @@ export default function MembersTable() {
                       {member.created_at ? new Date(member.created_at).toLocaleDateString() : '—'}
                     </td>
                     <td className="py-3 px-2 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {member.status === 'pending_review' && (
-                          <button 
-                            onClick={() => handleApproveMember(member)} 
-                            className="p-1.5 text-slate-400 hover:text-green-600 transition-colors rounded-md hover:bg-green-50"
-                            title="Approve member"
+                      <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {member.latitude && member.longitude && (
+                          <a 
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${member.latitude},${member.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 text-sky-600 hover:text-sky-800 hover:bg-sky-50 rounded-lg transition-colors inline-flex items-center"
+                            title="Get Directions / Visit"
                           >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                          </button>
+                            <Navigation className="w-4 h-4" />
+                          </a>
                         )}
                         <button 
                           onClick={() => { setSelectedMember(member); setShowViewModal(true); }} 
@@ -627,20 +645,33 @@ export default function MembersTable() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button 
-                          onClick={() => openEditModal(member)} 
-                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" 
-                          title="Edit Member"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => { setSelectedMember(member); setShowDeleteModal(true); }} 
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" 
-                          title="Delete Member"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {canManage && member.status === 'pending_review' && (
+                          <button 
+                            onClick={() => handleApproveMember(member)} 
+                            className="p-1.5 text-slate-400 hover:text-green-600 transition-colors rounded-md hover:bg-green-50"
+                            title="Approve member"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canManage && (
+                          <>
+                            <button 
+                              onClick={() => openEditModal(member)} 
+                              className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors" 
+                              title="Edit Member"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => { setSelectedMember(member); setShowDeleteModal(true); }} 
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" 
+                              title="Delete Member"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                 </tr>
@@ -1167,6 +1198,23 @@ export default function MembersTable() {
                 <p className="text-sm text-slate-600">{selectedMember.address || '—'}</p>
               </div>
               
+              {selectedMember.latitude && selectedMember.longitude && (
+                <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-400">Home Location</p>
+                    <p className="text-xs font-medium text-emerald-600">GPS Coordinates Available</p>
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${selectedMember.latitude},${selectedMember.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors !text-white no-underline"
+                  >
+                    <Navigation className="w-3.5 h-3.5" /> Get Directions
+                  </a>
+                </div>
+              )}
+              
               <div>
                 <p className="text-xs text-slate-400">Joined date</p>
                 <p className="text-sm text-slate-600">{formatDate(selectedMember.date_joined)}</p>
@@ -1174,9 +1222,11 @@ export default function MembersTable() {
             </div>
             
             <div className="flex gap-2 mt-5 pt-3 border-t border-slate-100">
-              <button onClick={() => { setShowViewModal(false); openEditModal(selectedMember); }} className="flex-1 btn-primary text-sm py-2">
-                Edit Member
-              </button>
+              {canManage && (
+                <button onClick={() => { setShowViewModal(false); openEditModal(selectedMember); }} className="flex-1 btn-primary text-sm py-2">
+                  Edit Member
+                </button>
+              )}
               <button onClick={() => setShowViewModal(false)} className="flex-1 btn-secondary text-sm py-2">
                 Close
               </button>

@@ -485,6 +485,7 @@ import random
 from django.utils import timezone
 from datetime import timedelta
 from django.core.mail import send_mail
+from django.conf import settings
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -548,10 +549,14 @@ def resend_otp(request):
         print(f"==================================================")
         
         try:
+            org_name = member.organization.name if (member.organization and member.organization.name) else "MAMS"
+            email_user = getattr(settings, 'EMAIL_HOST_USER', '')
+            sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
+
             send_mail(
-                subject='Your New MAMS Verification Code',
-                message=f'Hello {member.first_name},\n\nYour new MAMS verification code is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
-                from_email='noreply@mams.local',
+                subject=f'Your New {org_name} Verification Code',
+                message=f'Hello {member.first_name},\n\nYour new verification code for {org_name} is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
+                from_email=sender,
                 recipient_list=[email],
                 fail_silently=True,
             )
@@ -584,10 +589,14 @@ def request_password_reset(request):
         print(f"==================================================")
         
         try:
+            org_name = member.organization.name if (member.organization and member.organization.name) else "MAMS"
+            email_user = getattr(settings, 'EMAIL_HOST_USER', '')
+            sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
+
             send_mail(
-                subject='Your MAMS Password Reset Code',
-                message=f'Hello {member.first_name},\n\nYour MAMS password reset code is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
-                from_email='noreply@mams.local',
+                subject=f'Your {org_name} Password Reset Code',
+                message=f'Hello {member.first_name},\n\nYour password reset code for {org_name} is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
+                from_email=sender,
                 recipient_list=[email],
                 fail_silently=True,
             )

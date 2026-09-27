@@ -28,6 +28,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   double? _latitude;
   double? _longitude;
   bool _removePicture = false;
+  bool _locationCleared = false;
 
   @override
   void initState() {
@@ -72,9 +73,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'phone_number': _phoneController.text.trim(),
       'gender': _gender,
       'address': _addressController.text.trim(),
-      'latitude': _latitude,
-      'longitude': _longitude,
     };
+    // Only include coords when user explicitly pinned or explicitly cleared
+    if (_latitude != null) {
+      data['latitude'] = _latitude;
+      data['longitude'] = _longitude;
+    } else if (_locationCleared) {
+      data['latitude'] = null;
+      data['longitude'] = null;
+    }
+    // If neither: omit lat/lng → backend auto-geocodes from address
     
     if (_removePicture) data['remove_picture'] = 'true';
 
@@ -87,6 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (result.containsKey('message')) {
       setState(() {
         _successMessage = result['message'];
+        _locationCleared = false;
         if (_removePicture) {
            _existingProfileImage = null;
            _profileImage = null;
@@ -265,6 +274,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       _latitude = null;
                       _longitude = null;
                       _addressController.clear();
+                      _locationCleared = true;
                     });
                   },
                   icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),

@@ -177,12 +177,19 @@ export default function MyProfile() {
           phone_number: formData.phone_number,
           address: formData.address || '',
           ministries: formData.ministries,
-          latitude: pickedLat,
-          longitude: pickedLng
         };
         if (formData.section_id) payload.section = formData.section_id;
         if (formData.zone_id) payload.zone = formData.zone_id;
         if (profilePicFile === 'DELETE') payload.profile_picture = null;
+        // Only include coords when the user explicitly pinned (non-null) or explicitly cleared
+        if (pickedLat !== null) {
+          payload.latitude = pickedLat;
+          payload.longitude = pickedLng;
+        } else if (locationCleared) {
+          payload.latitude = null;
+          payload.longitude = null;
+        }
+        // If neither: omit lat/lng → backend auto-geocodes from address field
       }
 
       await api.updateMember(user.member_id, payload);

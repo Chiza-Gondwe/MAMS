@@ -57,6 +57,8 @@ import random
 from django.utils import timezone
 from django.core.mail import send_mail
 
+from django.conf import settings
+
 class RegisterMemberSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     ministries = serializers.PrimaryKeyRelatedField(
@@ -132,10 +134,14 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
             
             # Send Email
             try:
+                org_name = organization.name if organization else "MAMS"
+                email_user = getattr(settings, 'EMAIL_HOST_USER', '')
+                sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
+
                 send_mail(
-                    subject='Verify Your MAMS Account',
-                    message=f'Hello {member.first_name},\n\nYour MAMS verification code is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
-                    from_email='noreply@mams.local',
+                    subject=f'Verify Your {org_name} Account',
+                    message=f'Hello {member.first_name},\n\nYour verification code for {org_name} is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
+                    from_email=sender,
                     recipient_list=[email],
                     fail_silently=True,
                 )

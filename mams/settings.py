@@ -184,8 +184,19 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
 }
 
-# Use console backend for development (prints to terminal instead of actual sending)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# Email configuration (automatically uses real Gmail SMTP if credentials exist in .env, otherwise console)
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '').strip()
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '').strip()
+
+if EMAIL_HOST_USER and EMAIL_HOST_PASSWORD:
+    EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@mams.local')
 
 WEBPUSH_SETTINGS = {
     "VAPID_PUBLIC_KEY": os.getenv("VAPID_PUBLIC_KEY", ""),

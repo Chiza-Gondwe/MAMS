@@ -100,13 +100,16 @@ export default function AttendanceSection() {
   const masterQRTargetUrl = `${window.location.origin}/scan/today`;
   const masterQRImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(masterQRTargetUrl)}`;
 
+  const isPTA = user?.org_type === 'PTA';
+  const meetingLabel = isPTA ? 'PTA Meeting' : 'Sunday Service';
+
   const printDoorPoster = () => {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>${churchName} - Door Attendance Poster</title>
+          <title>${churchName} - Attendance Poster</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px; margin: 0; background: #fff; }
             .poster { max-width: 650px; margin: 0 auto; border: 4px solid #0284c7; border-radius: 24px; padding: 40px 30px; box-sizing: border-box; }
@@ -127,7 +130,7 @@ export default function AttendanceSection() {
         <body>
           <div class="poster">
             <h1>${churchName}</h1>
-            <h2>Sunday Service Attendance Check-in</h2>
+            <h2>${meetingLabel} Attendance Check-in</h2>
             <div class="qr-wrapper">
               <img src="${masterQRImageUrl}" alt="Attendance QR Code" />
             </div>
@@ -140,7 +143,7 @@ export default function AttendanceSection() {
               </ol>
             </div>
             <br />
-            <div class="badge">Permanent Master QR Code • Works Every Service</div>
+            <div class="badge">Permanent Master QR Code • Works Every ${isPTA ? 'Meeting' : 'Service'}</div>
           </div>
           <script>
             window.onload = function() {
@@ -345,10 +348,10 @@ export default function AttendanceSection() {
           <button 
             onClick={() => setShowMasterQRModal(true)} 
             className="text-xs bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-sm"
-            title="Permanent QR code for Doors, Benches & Brochures"
+            title={isPTA ? "Permanent QR code for Doors, Noticeboards & Handouts" : "Permanent QR code for Doors, Benches & Brochures"}
           >
             <QrCode className="w-4 h-4 text-indigo-600" />
-            <span>Permanent Church QR</span>
+            <span>{isPTA ? "Permanent Meeting QR" : "Permanent Church QR"}</span>
           </button>
           <button 
             onClick={() => setShowScanModal(true)} 
@@ -362,7 +365,7 @@ export default function AttendanceSection() {
             className="text-sm text-sky-700 hover:text-sky-800 flex items-center gap-1.5 transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
-            New session
+            {isPTA ? "New meeting" : "New session"}
           </button>
           <button 
             onClick={loadData} 
@@ -388,9 +391,9 @@ export default function AttendanceSection() {
       {/* Attendance trend chart */}
       <div className="mb-6 pb-4 border-b border-slate-100">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Attendance per Service</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{isPTA ? "Attendance per Meeting / Event" : "Attendance per Service"}</p>
           <span className="text-xs text-slate-400">
-            {sessions.length > 0 ? `Showing last ${Math.min(sessions.length, 8)} services` : 'No services yet'}
+            {sessions.length > 0 ? `Showing last ${Math.min(sessions.length, 8)} ${isPTA ? 'meetings' : 'services'}` : (isPTA ? 'No meetings yet' : 'No services yet')}
           </span>
         </div>
 
@@ -399,8 +402,8 @@ export default function AttendanceSection() {
             <svg className="w-8 h-8 text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <p className="text-sm font-medium text-slate-400">No services yet</p>
-            <p className="text-xs text-slate-300 mt-0.5">Create a session and start scanning to see trends</p>
+            <p className="text-sm font-medium text-slate-400">{isPTA ? "No meetings yet" : "No services yet"}</p>
+            <p className="text-xs text-slate-300 mt-0.5">{isPTA ? "Create a meeting and start scanning to see trends" : "Create a session and start scanning to see trends"}</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={180}>
@@ -897,8 +900,8 @@ export default function AttendanceSection() {
                     <Printer className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-800 text-sm">Print Church Door Poster (Full Page)</h4>
-                    <p className="text-xs text-slate-500">Includes church title, instructions & large QR code for the main entrance.</p>
+                    <h4 className="font-bold text-slate-800 text-sm">{isPTA ? "Print Meeting Entrance Poster (Full Page)" : "Print Church Door Poster (Full Page)"}</h4>
+                    <p className="text-xs text-slate-500">{isPTA ? "Includes school title, instructions & large QR code for the hall/meeting entrance." : "Includes church title, instructions & large QR code for the main entrance."}</p>
                   </div>
                 </div>
                 <span className="text-xs font-semibold text-indigo-600 bg-white px-2 py-1 rounded-md border border-slate-200 group-hover:border-indigo-300">
@@ -916,8 +919,8 @@ export default function AttendanceSection() {
                     <Layers className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-800 text-sm">Print Pew / Bench Sticker Sheet (Grid of 9)</h4>
-                    <p className="text-xs text-slate-500">Formats 9 compact stickers per A4 page to cut & stick on each bench or chair.</p>
+                    <h4 className="font-bold text-slate-800 text-sm">{isPTA ? "Print Desk / Chair Sticker Sheet (Grid of 9)" : "Print Pew / Bench Sticker Sheet (Grid of 9)"}</h4>
+                    <p className="text-xs text-slate-500">{isPTA ? "Formats 9 compact stickers per A4 page to cut & stick on desks, chairs or folders." : "Formats 9 compact stickers per A4 page to cut & stick on each bench or chair."}</p>
                   </div>
                 </div>
                 <span className="text-xs font-semibold text-emerald-600 bg-white px-2 py-1 rounded-md border border-slate-200 group-hover:border-emerald-300">
@@ -930,7 +933,7 @@ export default function AttendanceSection() {
                 href={masterQRImageUrl}
                 target="_blank"
                 rel="noreferrer"
-                download="Church_Attendance_QR_Code.png"
+                download={isPTA ? "School_Attendance_QR_Code.png" : "Church_Attendance_QR_Code.png"}
                 className="w-full p-3 rounded-xl border border-slate-200 hover:border-purple-400 hover:bg-purple-50/40 flex items-center justify-between text-left transition-all group"
               >
                 <div className="flex items-center gap-3">
@@ -938,8 +941,8 @@ export default function AttendanceSection() {
                     <Download className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-slate-800 text-sm">Download for Brochure / Bulletin (PNG)</h4>
-                    <p className="text-xs text-slate-500">Save high-res image to paste into MS Word, Canva, or weekly bulletin.</p>
+                    <h4 className="font-bold text-slate-800 text-sm">{isPTA ? "Download for Agenda / Newsletter (PNG)" : "Download for Brochure / Bulletin (PNG)"}</h4>
+                    <p className="text-xs text-slate-500">{isPTA ? "Save high-res image to paste into Word, noticeboard, or meeting agenda." : "Save high-res image to paste into MS Word, Canva, or weekly bulletin."}</p>
                   </div>
                 </div>
                 <span className="text-xs font-semibold text-purple-600 bg-white px-2 py-1 rounded-md border border-slate-200 group-hover:border-purple-300">

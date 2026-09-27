@@ -32,6 +32,7 @@ Open a **new** terminal in your `MAMS` folder and run exactly this:
 
 ```cmd
 "%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe" reverse tcp:8000 tcp:8000
+
 ```
 
 _(If it works, it will just print `8000`. You can close this specific terminal window after it prints 8000)._

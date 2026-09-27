@@ -114,23 +114,6 @@ class _MembersScreenState extends State<MembersScreen> {
                                   launchUrl(Uri.parse('https://wa.me/$phone'));
                                 },
                               ),
-                            ],
-                            if (m['latitude'] != null && 
-                                m['longitude'] != null && 
-                                m['latitude'].toString().isNotEmpty && 
-                                m['longitude'].toString().isNotEmpty) ...[
-                              IconButton(
-                                icon: const Icon(Icons.directions, color: Colors.indigo),
-                                tooltip: 'Get Directions',
-                                onPressed: () {
-                                  final lat = m['latitude'];
-                                  final lng = m['longitude'];
-                                  launchUrl(
-                                    Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng'),
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                },
-                              ),
                             ]
                           ],
                         ),

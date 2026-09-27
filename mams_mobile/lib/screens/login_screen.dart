@@ -343,7 +343,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Membership Affiliation & Management',
+                        'Membership Affiliation & Management System',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 13,

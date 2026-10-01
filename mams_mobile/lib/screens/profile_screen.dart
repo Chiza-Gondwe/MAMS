@@ -1,8 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
-import 'location_picker_screen.dart';
+import '../theme/theme_controller.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -20,37 +21,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late TextEditingController _firstNameController;
   late TextEditingController _lastNameController;
   late TextEditingController _phoneController;
-  late TextEditingController _addressController;
+  final TextEditingController _serverUrlController = TextEditingController();
   String _gender = 'M';
-  
+
   File? _profileImage;
   String? _existingProfileImage;
   double? _latitude;
   double? _longitude;
+  bool _isGettingLocation = false;
   bool _removePicture = false;
-  bool _locationCleared = false;
 
   @override
   void initState() {
     super.initState();
-    _firstNameController = TextEditingController(text: widget.userData['first_name'] ?? '');
-    _lastNameController = TextEditingController(text: widget.userData['last_name'] ?? '');
-    _phoneController = TextEditingController(text: widget.userData['phone_number'] ?? '');
-    _addressController = TextEditingController(text: widget.userData['address'] ?? '');
+    _firstNameController = TextEditingController(
+      text: widget.userData['first_name'] ?? '',
+    );
+    _lastNameController = TextEditingController(
+      text: widget.userData['last_name'] ?? '',
+    );
+    _phoneController = TextEditingController(
+      text: widget.userData['phone_number'] ?? '',
+    );
+
     if (widget.userData['gender'] != null) {
       _gender = widget.userData['gender'];
     }
+
     _existingProfileImage = widget.userData['profile_picture'];
+    _loadServerUrl();
+  }
+
+  Future<void> _loadServerUrl() async {
+    final url = await ApiService.getBaseUrl();
+    if (mounted) {
+      setState(() => _serverUrlController.text = url);
+    }
   }
 
   Future<void> _takePhoto() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.camera, maxWidth: 800, maxHeight: 800);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 800,
+      maxHeight: 800,
+    );
     if (pickedFile != null) {
       setState(() {
         _profileImage = File(pickedFile.path);
-        _existingProfileImage = null;
+        _existingProfileImage = null; // Hide existing if new one taken
         _removePicture = false;
+      });
+    }
+  }
+
+  Future<void> _getLocation() async {
+    setState(() {
+      _isGettingLocation = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw 'Location services are disabled.';
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw 'Location permissions are denied';
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw 'Location permissions are permanently denied.';
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _isGettingLocation = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString();
+        _isGettingLocation = false;
       });
     }
   }
@@ -72,37 +136,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'last_name': _lastNameController.text.trim(),
       'phone_number': _phoneController.text.trim(),
       'gender': _gender,
-      'address': _addressController.text.trim(),
     };
-    // Only include coords when user explicitly pinned or explicitly cleared
-    if (_latitude != null) {
-      data['latitude'] = _latitude;
-      data['longitude'] = _longitude;
-    } else if (_locationCleared) {
-      data['latitude'] = null;
-      data['longitude'] = null;
-    }
-    // If neither: omit lat/lng → backend auto-geocodes from address
-    
-    if (_removePicture) data['remove_picture'] = 'true';
 
-    final result = await ApiService.updateProfile(data, profileImage: _profileImage);
-    
+    if (_removePicture) data['remove_picture'] = 'true';
+    if (_latitude != null) data['latitude'] = _latitude;
+    if (_longitude != null) data['longitude'] = _longitude;
+
+    final result = await ApiService.updateProfile(
+      data,
+      profileImage: _profileImage,
+    );
+
     if (!mounted) return;
-    
+
     setState(() => _isLoading = false);
 
     if (result.containsKey('message')) {
       setState(() {
         _successMessage = result['message'];
-        _locationCleared = false;
         if (_removePicture) {
-           _existingProfileImage = null;
-           _profileImage = null;
-           _removePicture = false;
-        } else if (result.containsKey('profile_picture') && result['profile_picture'] != null) {
-           _existingProfileImage = result['profile_picture'];
-           _profileImage = null;
+          _existingProfileImage = null;
+          _profileImage = null;
+          _removePicture = false;
+        } else if (result.containsKey('profile_picture') &&
+            result['profile_picture'] != null) {
+          _existingProfileImage = result['profile_picture'];
+          _profileImage = null;
         }
       });
     } else {
@@ -114,16 +173,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MamsColors.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: colors.background,
       appBar: AppBar(
-        title: const Text('Edit Profile'),
-        backgroundColor: Colors.transparent,
+        title: Text(
+          'Profile & Settings',
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: colors.background,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        foregroundColor: colors.textPrimary,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -132,166 +199,399 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
                 ),
-                child: Text(_errorMessage!, style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+                child: Text(
+                  _errorMessage!,
+                  style: TextStyle(color: colors.dangerRed, fontSize: 13),
+                ),
               ),
-              
+
             if (_successMessage != null)
               Container(
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.shade200),
+                  color: colors.successBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: colors.successGreen.withValues(alpha: 0.4),
+                  ),
                 ),
-                child: Text(_successMessage!, style: TextStyle(color: Colors.green.shade700, fontSize: 13)),
+                child: Text(
+                  _successMessage!,
+                  style: TextStyle(color: colors.successGreen, fontSize: 13),
+                ),
               ),
 
             Center(
               child: Stack(
                 children: [
                   CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.grey.shade200,
+                    radius: 56,
+                    backgroundColor: colors.iconBadgeBg,
                     backgroundImage: (!_removePicture && _profileImage != null)
                         ? FileImage(_profileImage!) as ImageProvider
-                        : ((!_removePicture && _existingProfileImage != null) ? NetworkImage(_existingProfileImage!) : null),
-                    child: (_removePicture || (_profileImage == null && _existingProfileImage == null))
-                        ? const Icon(Icons.person, size: 60, color: Colors.grey) 
+                        : ((!_removePicture && _existingProfileImage != null)
+                              ? NetworkImage(_existingProfileImage!)
+                              : null),
+                    child:
+                        (_removePicture ||
+                            (_profileImage == null &&
+                                _existingProfileImage == null))
+                        ? Icon(
+                            Icons.person_rounded,
+                            size: 54,
+                            color: colors.iconBadgeFg,
+                          )
                         : null,
                   ),
-                  if (!_removePicture && (_profileImage != null || _existingProfileImage != null))
+                  if (!_removePicture &&
+                      (_profileImage != null || _existingProfileImage != null))
                     Positioned(
-                      bottom: 0, left: 0,
+                      bottom: 0,
+                      left: 0,
                       child: InkWell(
                         onTap: () => setState(() => _removePicture = true),
                         child: Container(
                           padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: Colors.red.shade600, shape: BoxShape.circle),
-                          child: const Icon(Icons.delete, color: Colors.white, size: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade600,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.delete,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                         ),
                       ),
                     ),
                   Positioned(
-                    bottom: 0, right: 0,
+                    bottom: 0,
+                    right: 0,
                     child: InkWell(
                       onTap: _takePhoto,
                       child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: const BoxDecoration(color: Color(0xFF4F46E5), shape: BoxShape.circle),
-                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 22),
+                        padding: const EdgeInsets.all(9),
+                        decoration: BoxDecoration(
+                          color: colors.primaryNavy,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
-                  )
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            _buildTextField(_firstNameController, 'First Name'),
-            const SizedBox(height: 12),
-            _buildTextField(_lastNameController, 'Last Name'),
-            const SizedBox(height: 12),
-            _buildTextField(_phoneController, 'Phone Number', keyboardType: TextInputType.phone),
-            const SizedBox(height: 12),
-            // Address field with geocoding note
-            TextField(
-              controller: _addressController,
-              decoration: InputDecoration(
-                labelText: 'Home Address',
-                hintText: 'e.g. House 15, Changachanga, Lusaka',
-                helperText: 'Optional — used as a reference label.',
-                helperStyle: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-                prefixIcon: const Icon(Icons.location_on, size: 20, color: Color(0xFF94A3B8)),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Pick on Map button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  final result = await Navigator.push<dynamic>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => LocationPickerScreen(
-                        initialLat: _latitude,
-                        initialLng: _longitude,
+            const SizedBox(height: 18),
+            Center(
+              child: TextButton.icon(
+                onPressed: _isGettingLocation ? null : _getLocation,
+                icon: _isGettingLocation
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        _latitude != null
+                            ? Icons.check_circle
+                            : Icons.location_on_outlined,
+                        color: _latitude != null
+                            ? colors.successGreen
+                            : colors.iconBadgeFg,
+                        size: 18,
                       ),
-                    ),
-                  );
-                  if (result != null && result is Map) {
-                    final lat = result['lat'] as double?;
-                    final lng = result['lng'] as double?;
-                    final address = result['address'] as String?;
-                    if (lat != null && lng != null) {
-                      setState(() {
-                        _latitude = lat;
-                        _longitude = lng;
-                        if (address != null && address.isNotEmpty) {
-                          _addressController.text = address;
-                        }
-                      });
-                    }
-                  }
-                },
-                icon: Icon(
-                  _latitude != null ? Icons.edit_location_alt : Icons.add_location_alt,
-                  size: 18,
-                  color: _latitude != null ? const Color(0xFF4F46E5) : Colors.grey.shade600,
-                ),
                 label: Text(
                   _latitude != null
-                      ? 'Location pinned ✓ — tap to change'
-                      : 'Pick My Home on Map',
+                      ? 'Location Updated!'
+                      : 'Update GPS Location',
                   style: TextStyle(
-                    fontSize: 13,
+                    color: _latitude != null
+                        ? colors.successGreen
+                        : colors.textPrimary,
                     fontWeight: FontWeight.w600,
-                    color: _latitude != null ? const Color(0xFF4F46E5) : Colors.grey.shade700,
+                    fontSize: 13,
                   ),
                 ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  side: BorderSide(
-                    color: _latitude != null ? const Color(0xFF4F46E5) : Colors.grey.shade300,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
                   ),
-                  backgroundColor: _latitude != null ? const Color(0xFFEEF2FF) : Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  backgroundColor: _latitude != null
+                      ? colors.successBg
+                      : colors.cardSurface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(color: colors.cardBorder),
+                  ),
                 ),
               ),
             ),
-            if (_latitude != null || _addressController.text.isNotEmpty)
-              Center(
-                child: TextButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _latitude = null;
-                      _longitude = null;
-                      _addressController.clear();
-                      _locationCleared = true;
-                    });
-                  },
-                  icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                  label: const Text(
-                    'Delete Location',
-                    style: TextStyle(color: Colors.red, fontSize: 13),
-                  ),
-                ),
+            const SizedBox(height: 24),
+
+            // Appearance Mode Selector (Light / Dark / System)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colors.cardSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.cardBorder),
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        ThemeController.modeIcon,
+                        size: 18,
+                        color: colors.iconBadgeFg,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Appearance Mode',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ValueListenableBuilder<ThemeMode>(
+                    valueListenable: ThemeController.themeModeNotifier,
+                    builder: (context, currentMode, _) {
+                      return Row(
+                        children: [
+                          _buildModeChip(
+                            colors,
+                            label: 'Light',
+                            icon: Icons.light_mode_rounded,
+                            mode: ThemeMode.light,
+                            current: currentMode,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildModeChip(
+                            colors,
+                            label: 'Dark',
+                            icon: Icons.dark_mode_rounded,
+                            mode: ThemeMode.dark,
+                            current: currentMode,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildModeChip(
+                            colors,
+                            label: 'System',
+                            icon: Icons.brightness_auto_rounded,
+                            mode: ThemeMode.system,
+                            current: currentMode,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Backend Server Connection (USB / Wi-Fi / Cloudflare or ngrok Tunnel)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colors.cardSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.cardBorder),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.cloud_sync_outlined,
+                        size: 18,
+                        color: colors.iconBadgeFg,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Server Connection (USB / Wireless Tunnel)',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Select your laptop Wi-Fi IP (`172.16.50.68`) for wireless mode, or `127.0.0.1` for USB cable:',
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      ActionChip(
+                        label: const Text('Wi-Fi (172.16.50.68)'),
+                        backgroundColor: colors.iconBadgeBg,
+                        side: BorderSide(color: colors.cardBorder),
+                        labelStyle: TextStyle(
+                          color: colors.iconBadgeFg,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onPressed: () async {
+                          _serverUrlController.text =
+                              'http://172.16.50.68:8000/api';
+                          await ApiService.setBaseUrl(
+                            _serverUrlController.text,
+                          );
+                          await _loadServerUrl();
+                        },
+                      ),
+                      ActionChip(
+                        label: const Text('USB (127.0.0.1)'),
+                        backgroundColor: colors.subtleSurface,
+                        side: BorderSide(color: colors.cardBorder),
+                        labelStyle: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onPressed: () async {
+                          _serverUrlController.text =
+                              'http://127.0.0.1:8000/api';
+                          await ApiService.setBaseUrl(
+                            _serverUrlController.text,
+                          );
+                          await _loadServerUrl();
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _serverUrlController,
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 13,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'http://172.16.50.68:8000/api',
+                            hintStyle: TextStyle(color: colors.textMuted),
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 11,
+                            ),
+                            filled: true,
+                            fillColor: colors.subtleSurface,
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: colors.cardBorder),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(
+                                color: colors.accentBlue,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await ApiService.setBaseUrl(
+                            _serverUrlController.text,
+                          );
+                          await _loadServerUrl();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Server URL updated to ${_serverUrlController.text}',
+                              ),
+                              backgroundColor: colors.primaryNavy,
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colors.primaryNavy,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 11,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        child: const Text(
+                          'Apply',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            _buildTextField(colors, _firstNameController, 'First Name'),
+            const SizedBox(height: 12),
+            _buildTextField(colors, _lastNameController, 'Last Name'),
+            const SizedBox(height: 12),
+            _buildTextField(
+              colors,
+              _phoneController,
+              'Phone Number',
+              keyboardType: TextInputType.phone,
+            ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _gender,
+              dropdownColor: colors.cardSurface,
+              style: TextStyle(color: colors.textPrimary, fontSize: 15),
               decoration: InputDecoration(
                 labelText: 'Gender',
+                labelStyle: TextStyle(color: colors.textSecondary),
                 filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                fillColor: colors.cardSurface,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.cardBorder),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.accentBlue, width: 1.5),
+                ),
               ),
               items: const [
                 DropdownMenuItem(value: 'M', child: Text('Male')),
@@ -299,18 +599,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
               onChanged: (val) => setState(() => _gender = val!),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             ElevatedButton(
               onPressed: _isLoading ? null : _updateProfile,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: const Color(0xFF4F46E5),
+                backgroundColor: colors.primaryNavy,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: _isLoading 
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Save Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      'Save Profile',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
             ),
           ],
         ),
@@ -318,19 +634,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, {TextInputType? keyboardType}) {
+  Widget _buildModeChip(
+    MamsColors colors, {
+    required String label,
+    required IconData icon,
+    required ThemeMode mode,
+    required ThemeMode current,
+  }) {
+    final selected = mode == current;
+    return Expanded(
+      child: InkWell(
+        onTap: () => ThemeController.setThemeMode(mode),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? colors.primaryNavy : colors.subtleSurface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: selected ? colors.primaryNavy : colors.cardBorder,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: selected ? Colors.white : colors.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : colors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+    MamsColors colors,
+    TextEditingController controller,
+    String label, {
+    TextInputType? keyboardType,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      style: TextStyle(color: colors.textPrimary, fontSize: 15),
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: TextStyle(color: colors.textSecondary),
         filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
+        fillColor: colors.cardSurface,
+        enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: colors.cardBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colors.accentBlue, width: 1.5),
         ),
       ),
     );
   }
 }
+

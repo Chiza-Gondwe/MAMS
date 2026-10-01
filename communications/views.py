@@ -40,11 +40,16 @@ class EmailLogViewSet(BaseMultiTenantViewSet):
         # Send email (using BCC to protect privacy)
         try:
             from django.core.mail import EmailMessage
+            from django.conf import settings
+            org_name = church.name if (church and church.name) else "MAMS"
+            email_user = getattr(settings, 'EMAIL_HOST_USER', '')
+            sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
+            to_addr = [email_user] if email_user else ['noreply@mams.local']
             email_msg = EmailMessage(
                 subject,
                 body,
-                'noreply@mams.local', # From email
-                ['noreply@mams.local'], # To email
+                sender,
+                to_addr,
                 bcc=recipient_emails,
             )
             email_msg.send(fail_silently=False)

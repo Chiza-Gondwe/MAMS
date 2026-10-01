@@ -236,11 +236,14 @@ class MemberViewSet(BaseMultiTenantViewSet):
                 # Send welcome email
                 try:
                     from django.core.mail import send_mail
+                    from django.conf import settings
                     org_name = member.organization.name if member.organization else "MAMS"
+                    email_user = getattr(settings, 'EMAIL_HOST_USER', '')
+                    sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
                     send_mail(
                         subject=f'Welcome to {org_name}',
                         message=f'Hello {member.first_name},\n\nAn administrator has created an account for you at {org_name}.\n\nYour temporary password is: {password}\n\nPlease log in and change your password.\n\nThank you!',
-                        from_email='noreply@mams.local',
+                        from_email=sender,
                         recipient_list=[email],
                         fail_silently=True,
                     )
@@ -323,12 +326,38 @@ def get_current_user(request):
     if not profile:
         return Response({'error': 'Profile not found'}, status=404)
         
+    active_session_title = None
+    checked_in_today = False
+    if profile.organization:
+        from django.utils import timezone
+        from attendance.models import AttendanceSession, AttendanceRecord
+        today = timezone.localdate()
+        today_session = AttendanceSession.objects.filter(
+            organization=profile.organization,
+            date=today,
+        ).order_by('-id').first()
+        if today_session:
+            if today_session.start_time and today_session.end_time:
+                st = today_session.start_time.strftime('%H:%M')
+                et = today_session.end_time.strftime('%H:%M')
+                active_session_title = f"{today_session.title} ({st} - {et})"
+            elif today_session.start_time:
+                st = today_session.start_time.strftime('%H:%M')
+                active_session_title = f"{today_session.title} ({st})"
+            else:
+                active_session_title = today_session.title
+            checked_in_today = AttendanceRecord.objects.filter(
+                session=today_session,
+                member=profile,
+            ).exists()
+
     return Response({
         'username': user.username,
         'role': profile.role,
         'user_id': user.id,
         'member_id': profile.id,
         'first_name': profile.first_name,
+        'middle_name': profile.middle_name,
         'last_name': profile.last_name,
         'phone_number': profile.phone_number,
         'email': profile.email,
@@ -338,12 +367,16 @@ def get_current_user(request):
         'profile_picture': request.build_absolute_uri(profile.profile_picture.url) if profile.profile_picture else None,
         'is_temporary_password': profile.is_temporary_password,
         'org_name': profile.organization.name if profile.organization else '',
-        'org_type': profile.organization.org_type if profile.organization else 'CHURCH'
+        'org_type': profile.organization.org_type if profile.organization else 'CHURCH',
+        'org_city': profile.organization.city if profile.organization else 'LUSAKA',
+        'active_session_title': active_session_title,
+        'checked_in_today': checked_in_today,
     })
 
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 @api_view(['POST', 'PATCH', 'PUT'])
+@permission_classes([IsAuthenticated])
 @permission_classes([IsAuthenticated])
 def update_my_profile(request):
     user = request.user
@@ -351,13 +384,12 @@ def update_my_profile(request):
     if not profile:
         return Response({'error': 'Profile not found'}, status=404)
 
-    # Allow multipart parser for this specific function since api_view doesn't easily let us set parsers
-    # DRF handles request.data merging request.POST and request.FILES
-
     # Update User fields if provided
     if 'first_name' in request.data:
         user.first_name = request.data['first_name']
         profile.first_name = request.data['first_name']
+    if 'middle_name' in request.data:
+        profile.middle_name = request.data['middle_name']
     if 'last_name' in request.data:
         user.last_name = request.data['last_name']
         profile.last_name = request.data['last_name']
@@ -377,7 +409,8 @@ def update_my_profile(request):
         
     # Auto-geocode address if latitude was not explicitly passed in this request
     if 'latitude' not in request.data and 'address' in request.data and profile.address:
-        lat, lng = geocode_address(profile.address)
+        org_city = profile.organization.city.title() if (profile.organization and profile.organization.city) else 'Lusaka'
+        lat, lng = geocode_address(profile.address, city=org_city)
         if lat is not None:
             profile.latitude = lat
             profile.longitude = lng

@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
-import '../services/api_service.dart';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../services/api_service.dart';
+import '../theme/theme_controller.dart';
 
 class HoldingTankScreen extends StatefulWidget {
   const HoldingTankScreen({super.key});
@@ -21,26 +22,36 @@ class _HoldingTankScreenState extends State<HoldingTankScreen> {
   }
 
   Future<void> _fetchPendingMembers() async {
-    setState(() => _isLoading = true);
+    if (mounted) setState(() => _isLoading = true);
     try {
       final baseUrl = await ApiService.getBaseUrl();
       final token = await ApiService.getToken();
-      final response = await http.get(
-        Uri.parse('$baseUrl/members/?status=pending_review'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/members/?status=pending_review'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'ngrok-skip-browser-warning': 'true',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (!mounted) return;
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          _pendingMembers = data['results'] ?? data;
+          _pendingMembers = (data is Map && data['results'] is List)
+              ? data['results']
+              : (data is List ? data : []);
           _isLoading = false;
         });
+      } else {
+        setState(() => _isLoading = false);
       }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -48,64 +59,148 @@ class _HoldingTankScreenState extends State<HoldingTankScreen> {
     try {
       final baseUrl = await ApiService.getBaseUrl();
       final token = await ApiService.getToken();
-      final response = await http.post(
-        Uri.parse('$baseUrl/members/$id/approve/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/members/$id/approve/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'ngrok-skip-browser-warning': 'true',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+      if (!mounted) return;
       if (response.statusCode == 200) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Member approved successfully')));
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Member approved successfully')),
+        );
         _fetchPendingMembers();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Approval failed (${response.statusCode})')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = MamsColors.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF0A1628),
+      backgroundColor: colors.background,
       appBar: AppBar(
-        title: const Text('Holding Tank'),
-        backgroundColor: const Color(0xFF1F3864),
-        foregroundColor: Colors.white,
+        title: Text(
+          'Member Holding Tank',
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: colors.background,
+        foregroundColor: colors.textPrimary,
+        elevation: 0,
       ),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
-          : _pendingMembers.isEmpty 
-              ? const Center(child: Text('No pending members to approve.', style: TextStyle(color: Colors.white)))
-              : ListView.builder(
-                  itemCount: _pendingMembers.length,
-                  itemBuilder: (context, index) {
-                    final member = _pendingMembers[index];
-                    return Card(
-                      color: const Color(0xFF1F3864),
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF0A1628),
-                          child: Text(member['first_name'][0], style: const TextStyle(color: Colors.white)),
-                        ),
-                        title: Text('${member['first_name']} ${member['last_name']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        subtitle: Text(member['email'] ?? 'No email', style: const TextStyle(color: Colors.white70)),
-                        trailing: ElevatedButton(
-                          onPressed: () => _approveMember(member['id']),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
-                          child: const Text('Approve'),
+      body: _isLoading
+          ? Center(child: CircularProgressIndicator(color: colors.primaryNavy))
+          : _pendingMembers.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.how_to_reg_outlined,
+                        size: 52,
+                        color: colors.textMuted,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No pending members to approve.',
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    );
-                  },
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _fetchPendingMembers,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _pendingMembers.length,
+                    itemBuilder: (context, index) {
+                      final member = _pendingMembers[index];
+                      final first =
+                          (member['first_name'] ?? '').toString().trim();
+                      final last =
+                          (member['last_name'] ?? '').toString().trim();
+                      final initial =
+                          first.isNotEmpty ? first[0].toUpperCase() : '?';
+
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: BoxDecoration(
+                          color: colors.cardSurface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: colors.cardBorder),
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: colors.iconBadgeBg,
+                            child: Text(
+                              initial,
+                              style: TextStyle(
+                                color: colors.iconBadgeFg,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            '$first $last'.trim(),
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          subtitle: Text(
+                            member['email'] ??
+                                member['phone_number'] ??
+                                'Pending approval',
+                            style: TextStyle(color: colors.textSecondary),
+                          ),
+                          trailing: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colors.successGreen,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: () {
+                              final id = member['id'];
+                              if (id is int) {
+                                _approveMember(id);
+                              }
+                            },
+                            child: const Text(
+                              'Approve',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
     );
   }

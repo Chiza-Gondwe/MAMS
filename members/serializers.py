@@ -87,10 +87,13 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
     class Meta:
         model = Member
         fields = [
-            'first_name', 'last_name', 'email',
+            'first_name', 'middle_name', 'last_name', 'email',
             'phone_number', 'role', 'status', 'gender', 'password', 'ministries', 'section_id', 'zone_id', 'organization',
             'profile_picture', 'latitude', 'longitude'
         ]
+        extra_kwargs = {
+            'middle_name': {'required': False, 'allow_blank': True},
+        }
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)

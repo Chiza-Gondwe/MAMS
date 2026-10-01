@@ -196,7 +196,16 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
+                runSpacing: 6,
                 children: [
+                  ActionChip(
+                    label: const Text('Wi-Fi (172.16.50.68)'),
+                    backgroundColor: const Color(0xFF1E3A8A),
+                    labelStyle: const TextStyle(color: Colors.white, fontSize: 11),
+                    onPressed: () {
+                      controller.text = 'http://172.16.50.68:8000/api';
+                    },
+                  ),
                   ActionChip(
                     label: const Text('USB (localhost)'),
                     backgroundColor: const Color(0xFF334155),

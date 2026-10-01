@@ -16,9 +16,10 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
     if (_isProcessing) return;
     
     final List<Barcode> barcodes = capture.barcodes;
+    if (barcodes.isEmpty) return;
     final String? rawValue = barcodes.first.rawValue;
     
-    if (rawValue == null) return;
+    if (rawValue == null || rawValue.isEmpty) return;
     
     // Debug: show what the camera actually saw
     ScaffoldMessenger.of(context).showSnackBar(
@@ -34,11 +35,19 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
       if (rawValue.contains('/scan/today') || rawValue.contains('MAMS-ATTENDANCE-TODAY')) {
         result = await ApiService.scanTodayAttendance();
       } else {
-        int sessionId;
+        int? sessionId;
         if (rawValue.contains('MAMS-SESSION-')) {
-          sessionId = int.parse(rawValue.split('MAMS-SESSION-')[1]);
+          final tail = rawValue.split('MAMS-SESSION-')[1];
+          final m = RegExp(r'(\d+)').firstMatch(tail);
+          sessionId = m != null ? int.tryParse(m.group(1)!) : null;
         } else {
-          sessionId = int.parse(rawValue.split('/scan/').last);
+          final tail = rawValue.split('/scan/').last;
+          final m = RegExp(r'(\d+)').firstMatch(tail);
+          sessionId = m != null ? int.tryParse(m.group(1)!) : null;
+        }
+        if (sessionId == null) {
+          setState(() { _isProcessing = false; });
+          return;
         }
         result = await ApiService.scanAttendance(sessionId);
       }

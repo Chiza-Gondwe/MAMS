@@ -9,6 +9,7 @@ export default function Register() {
   
   const [formData, setFormData] = useState({
     first_name: '',
+    middle_name: '',
     last_name: '',
     email: '',
     phone_number: '',
@@ -145,7 +146,7 @@ export default function Register() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
                 <input
@@ -155,6 +156,17 @@ export default function Register() {
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400"
                   required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Middle Name <span className="text-xs text-slate-400 font-normal">(Opt)</span></label>
+                <input
+                  type="text"
+                  name="middle_name"
+                  value={formData.middle_name}
+                  onChange={handleChange}
+                  placeholder="Optional"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400"
                 />
               </div>
               <div>

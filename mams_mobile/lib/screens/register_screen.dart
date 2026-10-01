@@ -27,6 +27,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // Step 2: Details
   final _firstNameController = TextEditingController();
+  final _middleNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -85,13 +86,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
       if (permission == LocationPermission.deniedForever) throw 'Location permissions are permanently denied, we cannot request permissions.';
 
-      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+      if (!mounted) return;
       setState(() {
         _latitude = position.latitude;
         _longitude = position.longitude;
         _isGettingLocation = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
         _isGettingLocation = false;
@@ -103,6 +111,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_firstNameController.text.isEmpty ||
         _lastNameController.text.isEmpty ||
         _emailController.text.isEmpty ||
+        _phoneController.text.isEmpty ||
         _passwordController.text.isEmpty) {
       setState(() => _errorMessage = 'Please fill all required fields');
       return;
@@ -115,6 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final data = {
       'first_name': _firstNameController.text.trim(),
+      'middle_name': _middleNameController.text.trim(),
       'last_name': _lastNameController.text.trim(),
       'email': _emailController.text.trim(),
       'phone_number': _phoneController.text.trim(),
@@ -289,13 +299,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              _buildTextField(_firstNameController, 'First Name'),
+              _buildTextField(_firstNameController, 'First Name *'),
               const SizedBox(height: 12),
-              _buildTextField(_lastNameController, 'Last Name'),
+              _buildTextField(_middleNameController, 'Middle Name (Optional)'),
               const SizedBox(height: 12),
-              _buildTextField(_emailController, 'Email Address', keyboardType: TextInputType.emailAddress),
+              _buildTextField(_lastNameController, 'Last Name *'),
               const SizedBox(height: 12),
-              _buildTextField(_phoneController, 'Phone Number', keyboardType: TextInputType.phone),
+              _buildTextField(_emailController, 'Email Address *', keyboardType: TextInputType.emailAddress),
+              const SizedBox(height: 12),
+              _buildTextField(_phoneController, 'Phone Number *', keyboardType: TextInputType.phone),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _gender,

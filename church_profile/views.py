@@ -63,40 +63,41 @@ class PublicChurchViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
         import uuid
         
         church_name = request.data.get('church_name')
-        first_name = request.data.get('first_name')
-        last_name = request.data.get('last_name')
-        email = request.data.get('email')
+        first_name = (request.data.get('first_name') or '').strip()
+        middle_name = (request.data.get('middle_name') or '').strip()
+        last_name = (request.data.get('last_name') or '').strip()
+        email = (request.data.get('email') or '').strip()
         password = request.data.get('password')
-        phone = request.data.get('phone', '')
+        phone = (request.data.get('phone') or '').strip()
+        city = (request.data.get('city') or 'LUSAKA').strip().upper()
         
-        if not all([church_name, first_name, last_name, email, password]):
-            return Response({'error': 'All fields are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not all([church_name, first_name, last_name, email, phone, password]):
+            return Response({'error': 'Organization name, first name, last name, email, phone number, and password are required.'}, status=status.HTTP_400_BAD_REQUEST)
             
-        if User.objects.filter(email=email).exists():
+        if User.objects.filter(email__iexact=email).exists():
             return Response({'error': 'A user with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
             with transaction.atomic():
-                # Generate unique org code (first 3 letters of church name + random code)
-                prefix = church_name.upper().replace(' ', '')[:3]
-                if len(prefix) < 3:
-                    prefix = prefix.ljust(3, 'X')
-                random_part = str(uuid.uuid4().hex)[:6].upper()
-                org_code = f"{prefix}-C-{random_part}"
-                
                 org_type = request.data.get('org_type', 'CHURCH')
+                # Generate unique org code using City + Org Type + random code
+                city_prefix = city.replace(' ', '')[:3].upper() if city else 'LUS'
+                type_initial = org_type[0].upper() if org_type else 'C'
+                random_part = str(uuid.uuid4().hex)[:6].upper()
+                org_code = f"{city_prefix}-{type_initial}-{random_part}"
                 
                 # Create Organization
                 org = Organization.objects.create(
                     name=church_name,
                     org_code=org_code,
                     org_type=org_type,
-                    address='',
+                    city=city,
+                    address=city.title(),
                     phone=phone,
                     email=email
                 )
                 
-                # Create User (Pastor)
+                # Create User (Admin)
                 user = User.objects.create_user(
                     username=email[:150],
                     email=email,
@@ -107,20 +108,21 @@ class PublicChurchViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
                 )
                 
                 # Create Member (Admin role)
-                member = Member.objects.create(
+                Member.objects.create(
                     user=user,
                     first_name=first_name,
+                    middle_name=middle_name,
                     last_name=last_name,
                     email=email,
                     phone_number=phone,
                     role='admin',
                     status='active',
                     organization=org,
-                    is_verified=True # Auto-verify the creator
+                    is_verified=True
                 )
                 
             return Response({
-                'message': 'Church registered successfully.',
+                'message': 'Organization registered successfully.',
                 'org_code': org_code,
                 'organization': OrganizationSerializer(org).data
             }, status=status.HTTP_201_CREATED)
@@ -150,7 +152,7 @@ class MobileDashboardAPIView(APIView):
         total_members = Member.objects.filter(organization=org, status='active').count()
         pending_members = Member.objects.filter(organization=org, status='pending_review').count()
         
-        # Calculate total contributions this month
+        # Calculate total contributions this month (fallback to all-time completed if 0 this month)
         from django.db.models import Sum
         now = timezone.now()
         start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -158,12 +160,35 @@ class MobileDashboardAPIView(APIView):
             organization=org, 
             status='COMPLETED',
             created_at__gte=start_of_month
-        ).aggregate(total=Sum('amount'))['total'] or 0
-        
+        ).aggregate(total=Sum('amount'))['total']
+        if not contributions:
+            contributions = Donation.objects.filter(
+                organization=org,
+                status='COMPLETED',
+            ).aggregate(total=Sum('amount'))['total'] or 0
+
+        active_session_title = None
+        today = timezone.localdate()
+        today_session = AttendanceSession.objects.filter(
+            organization=org,
+            date=today,
+        ).order_by('-id').first()
+        if today_session:
+            if today_session.start_time and today_session.end_time:
+                st = today_session.start_time.strftime('%H:%M')
+                et = today_session.end_time.strftime('%H:%M')
+                active_session_title = f"{today_session.title} ({st} - {et})"
+            elif today_session.start_time:
+                st = today_session.start_time.strftime('%H:%M')
+                active_session_title = f"{today_session.title} ({st})"
+            else:
+                active_session_title = today_session.title
+
         return Response({
             'total_members': total_members,
             'pending_members': pending_members,
-            'monthly_contributions': contributions
+            'monthly_contributions': contributions,
+            'active_session_title': active_session_title,
         })
 
 class AnalyticsAPIView(APIView):

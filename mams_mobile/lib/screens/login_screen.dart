@@ -196,7 +196,16 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 6),
               Wrap(
                 spacing: 8,
+                runSpacing: 6,
                 children: [
+                  ActionChip(
+                    label: const Text('Wi-Fi (172.16.50.68)'),
+                    backgroundColor: const Color(0xFF1E3A8A),
+                    labelStyle: const TextStyle(color: Colors.white, fontSize: 11),
+                    onPressed: () {
+                      controller.text = 'http://172.16.50.68:8000/api';
+                    },
+                  ),
                   ActionChip(
                     label: const Text('USB (localhost)'),
                     backgroundColor: const Color(0xFF334155),
@@ -243,7 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A1628),
+      backgroundColor: const Color(0xFF070D1E),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -255,60 +264,124 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1F3864),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(
-                    Icons.supervised_user_circle,
-                    size: 64,
-                    color: Colors.white,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF070D1E), // Deep Midnight
+              Color(0xFF0F1B38), // Rich Navy
+              Color(0xFF1E1B4B), // Indigo Sapphire
+              Color(0xFF0B132B), // Slate Midnight
+            ],
+            stops: [0.0, 0.35, 0.75, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              // Subtle ambient glow behind logo
+              Positioned(
+                top: 10,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF6366F1).withValues(alpha: 0.16),
+                          blurRadius: 100,
+                          spreadRadius: 25,
+                        ),
+                        BoxShadow(
+                          color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                          blurRadius: 80,
+                          spreadRadius: 15,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'MAMS',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const Text(
-                  'Membership Affiliation & Management',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.white60,
-                  ),
-                ),
-                const SizedBox(height: 36),
-
-                // Login Form Card
-                Container(
+              ),
+              Center(
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24.0),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF111E36),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.white10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 92,
+                        height: 92,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                              blurRadius: 22,
+                              offset: const Offset(0, 8),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              blurRadius: 14,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Image.asset(
+                            'assets/icon/app_icon.png',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'MAMS',
+                        style: TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Membership Affiliation & Management System',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: 0.4,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const SizedBox(height: 36),
+
+                      // Login Form Card
+                      Container(
+                        padding: const EdgeInsets.all(24.0),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131F37).withValues(alpha: 0.90),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              blurRadius: 25,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: Column(
                     children: [
                       if (_errorMessage != null)
                         Container(
@@ -478,7 +551,10 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+          ],
+        ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

@@ -10,8 +10,19 @@ class Organization(models.Model):
         ('LUSAKA', 'Lusaka'),
         ('KITWE', 'Kitwe'),
         ('NDOLA', 'Ndola'),
+        ('KABWE', 'Kabwe'),
+        ('CHINGOLA', 'Chingola'),
+        ('MUFULIRA', 'Mufulira'),
         ('LIVINGSTONE', 'Livingstone'),
+        ('LUANSHYA', 'Luanshya'),
+        ('KASAMA', 'Kasama'),
         ('CHIPATA', 'Chipata'),
+        ('SOLWEZI', 'Solwezi'),
+        ('MANSA', 'Mansa'),
+        ('MONGU', 'Mongu'),
+        ('CHOMA', 'Choma'),
+        ('MAZABUKA', 'Mazabuka'),
+        ('KAFUE', 'Kafue'),
     )
 
     org_code = models.CharField(max_length=20, unique=True, blank=True)

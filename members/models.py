@@ -63,6 +63,7 @@ class Member(models.Model):
         related_name='member_profile'
     )
     first_name = models.CharField(max_length=100)
+    middle_name = models.CharField(max_length=100, blank=True, default='')
     last_name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=20, validators=[phone_regex])
@@ -87,4 +88,5 @@ class Member(models.Model):
     otp_created_at = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.first_name} {self.last_name}"
+        parts = [self.first_name, self.middle_name, self.last_name]
+        return " ".join(p for p in parts if p)

@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import { useAuth } from '../context/AuthContext';
 import { Plus, Trash2, Edit2, Loader2, X } from 'lucide-react';
 
 export default function Ministries() {
+  const { user } = useAuth();
+  const isPTA = user?.org_type === 'PTA';
+
   const [ministries, setMinistries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,7 +22,7 @@ export default function Ministries() {
       setMinistries(data.results || data || []);
       setError(null);
     } catch {
-      setError('Failed to load groups/ministries');
+      setError(isPTA ? 'Failed to load committees/activities' : 'Failed to load groups/ministries');
     } finally {
       setLoading(false);
     }
@@ -43,7 +47,7 @@ export default function Ministries() {
       setEditingId(null);
       fetchMinistries();
     } catch {
-      alert('Failed to save ministry. Ensure the name is unique.');
+      alert(`Failed to save. Ensure the name is unique.`);
     } finally {
       setSubmitting(false);
     }
@@ -79,11 +83,15 @@ export default function Ministries() {
     <div className="max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Ministries & Groups</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage the different groups your members can join.</p>
+          <h1 className="text-2xl font-bold text-slate-800">
+            {isPTA ? 'Committees & Activities' : 'Ministries & Groups'}
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">
+            {isPTA ? 'Manage committees, clubs, and extracurricular activities for your school.' : 'Manage the different groups your members can join.'}
+          </p>
         </div>
         <button onClick={openCreateModal} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Add Group
+          <Plus className="w-4 h-4" /> {isPTA ? 'Add Committee' : 'Add Group'}
         </button>
       </div>
 
@@ -91,7 +99,7 @@ export default function Ministries() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
-              <th className="px-6 py-4 font-medium">Group Name</th>
+              <th className="px-6 py-4 font-medium">{isPTA ? 'Committee / Activity Name' : 'Group Name'}</th>
               <th className="px-6 py-4 font-medium">Description</th>
               <th className="px-6 py-4 font-medium text-right">Actions</th>
             </tr>
@@ -100,7 +108,9 @@ export default function Ministries() {
             {ministries.length === 0 ? (
               <tr>
                 <td colSpan="3" className="px-6 py-8 text-center text-slate-500">
-                  No groups created yet. Click "Add Group" to create one.
+                  {isPTA 
+                    ? 'No committees or activities created yet. Click "Add Committee" to create one.' 
+                    : 'No groups created yet. Click "Add Group" to create one.'}
                 </td>
               </tr>
             ) : (
@@ -128,7 +138,11 @@ export default function Ministries() {
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Edit Group' : 'Create New Group'}</h2>
+              <h2 className="text-xl font-bold text-slate-800">
+                {editingId 
+                  ? (isPTA ? 'Edit Committee / Activity' : 'Edit Group') 
+                  : (isPTA ? 'Create New Committee / Activity' : 'Create New Group')}
+              </h2>
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
                 <X className="w-5 h-5" />
               </button>
@@ -136,12 +150,14 @@ export default function Ministries() {
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Group Name</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {isPTA ? 'Committee / Activity Name' : 'Group Name'}
+                  </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    placeholder="e.g. Singing - Youth Choir"
+                    placeholder={isPTA ? "e.g. PTA Executive, Sports Committee, Debate Club" : "e.g. Singing - Youth Choir"}
                     className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-500"
                     required
                   />

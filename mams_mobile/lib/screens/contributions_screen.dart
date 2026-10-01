@@ -19,8 +19,13 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
   }
 
   Future<void> _fetchDonations() async {
-    setState(() { _isLoading = true; });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
     final data = await ApiService.getDonations();
+    if (!mounted) return;
     setState(() {
       _donations = data;
       _isLoading = false;
@@ -29,7 +34,11 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    double total = _donations.fold(0, (sum, item) => sum + double.parse(item['amount']?.toString() ?? '0'));
+    double total = _donations.fold(
+      0,
+      (sum, item) =>
+          sum + (double.tryParse(item['amount']?.toString() ?? '0') ?? 0),
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -38,53 +47,81 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
         backgroundColor: const Color(0xFF4F46E5),
         foregroundColor: Colors.white,
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : RefreshIndicator(
-            onRefresh: _fetchDonations,
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      const Text('Total Given', style: TextStyle(color: Colors.grey, fontSize: 14)),
-                      const SizedBox(height: 8),
-                      Text('ZK ${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _donations.length,
-                    itemBuilder: (context, index) {
-                      final item = _donations[index];
-                      return ListTile(
-                        leading: const CircleAvatar(
-                          backgroundColor: Color(0xFF10B981),
-                          child: Icon(Icons.check, color: Colors.white),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _fetchDonations,
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
-                        title: Text('ZK ${double.parse(item['amount']?.toString() ?? '0').toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(item['date'] ?? ''),
-                        trailing: Text(item['status'] ?? 'Completed', style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
-                        tileColor: Colors.white,
-                        shape: const Border(bottom: BorderSide(color: Color(0xFFF1F5F9))),
-                      );
-                    },
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Total Given',
+                          style: TextStyle(color: Colors.grey, fontSize: 14),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'ZK ${total.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _donations.length,
+                      itemBuilder: (context, index) {
+                        final item = _donations[index];
+                        final amountVal =
+                            double.tryParse(item['amount']?.toString() ?? '0') ??
+                            0;
+                        return ListTile(
+                          leading: const CircleAvatar(
+                            backgroundColor: Color(0xFF10B981),
+                            child: Icon(Icons.check, color: Colors.white),
+                          ),
+                          title: Text(
+                            'ZK ${amountVal.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(item['date'] ?? ''),
+                          trailing: Text(
+                            item['status'] ?? 'Completed',
+                            style: const TextStyle(
+                              color: Color(0xFF10B981),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          tileColor: Colors.white,
+                          shape: const Border(
+                            bottom: BorderSide(color: Color(0xFFF1F5F9)),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
     );
   }
 }

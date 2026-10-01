@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
+import { useAuth } from '../context/AuthContext';
 import { Plus, Trash2, Edit2, Loader2 } from 'lucide-react';
 
 export default function Sections() {
+  const { user } = useAuth();
+  const isPTA = user?.org_type === 'PTA';
+
   const [sections, setSections] = useState([]);
   const [zones, setZones] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +27,7 @@ export default function Sections() {
       setZones(zonesData.results || zonesData || []);
       setError(null);
     } catch {
-      setError('Failed to load groups/sections');
+      setError(isPTA ? 'Failed to load classes' : 'Failed to load groups/sections');
     } finally {
       setLoading(false);
     }
@@ -84,11 +88,15 @@ export default function Sections() {
     <div className="max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Sections & Groups</h1>
-          <p className="text-slate-500 text-sm mt-1">Manage the different groups your members can join.</p>
+          <h1 className="text-2xl font-bold text-slate-800">
+            {isPTA ? 'Classes' : 'Sections & Groups'}
+          </h1>
+          <p className="text-slate-500 text-sm mt-1">
+            {isPTA ? 'Manage school classes and assign them to their respective grades.' : 'Manage the different groups your members can join.'}
+          </p>
         </div>
         <button onClick={openCreateModal} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Add Group
+          <Plus className="w-4 h-4" /> {isPTA ? 'Add Class' : 'Add Group'}
         </button>
       </div>
 
@@ -96,8 +104,8 @@ export default function Sections() {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 text-sm">
-              <th className="px-6 py-4 font-medium">Group Name</th>
-              <th className="px-6 py-4 font-medium">Zone</th>
+              <th className="px-6 py-4 font-medium">{isPTA ? 'Class Name' : 'Group Name'}</th>
+              <th className="px-6 py-4 font-medium">{isPTA ? 'Grade' : 'Zone'}</th>
               <th className="px-6 py-4 font-medium">Members</th>
               <th className="px-6 py-4 font-medium text-right">Actions</th>
             </tr>
@@ -105,8 +113,8 @@ export default function Sections() {
           <tbody className="divide-y divide-slate-100">
             {sections.length === 0 ? (
               <tr>
-                <td colSpan="3" className="px-6 py-8 text-center text-slate-500">
-                  No groups created yet. Click "Add Group" to create one.
+                <td colSpan="4" className="px-6 py-8 text-center text-slate-500">
+                  {isPTA ? 'No classes created yet. Click "Add Class" to create one.' : 'No groups created yet. Click "Add Group" to create one.'}
                 </td>
               </tr>
             ) : (
@@ -146,22 +154,30 @@ export default function Sections() {
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">{editingId ? 'Edit Group' : 'Create New Group'}</h2>
+            <h2 className="text-xl font-bold text-slate-800 mb-4">
+              {editingId 
+                ? (isPTA ? 'Edit Class' : 'Edit Group') 
+                : (isPTA ? 'Create New Class' : 'Create New Group')}
+            </h2>
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Group Name</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {isPTA ? 'Class Name' : 'Group Name'}
+                  </label>
                   <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white/50 focus:outline-none focus:border-indigo-500"
-                  placeholder="e.g. Section 1"
-                />
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white/50 focus:outline-none focus:border-indigo-500"
+                    placeholder={isPTA ? "e.g. 10 Green, 8A, Grade 12 Red" : "e.g. Section 1"}
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Parent Zone (Optional)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {isPTA ? 'Grade (Optional)' : 'Parent Zone (Optional)'}
+                  </label>
                   <select
                     value={formData.zone}
                     onChange={(e) => setFormData({...formData, zone: e.target.value || null})}

@@ -7,8 +7,21 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
   static const _secureStorage = FlutterSecureStorage();
-  // Default URL: localhost:8000 (standard for ADB reverse port-forwarding over USB)
-  static const String defaultBaseUrl = 'http://127.0.0.1:8000/api';
+  // Default URL: Laptop Wi-Fi IP (works wirelessly over Wi-Fi / Hotspot with runserver 0.0.0.0:8000)
+  static const String defaultBaseUrl = 'http://172.16.49.62:8000/api';
+  static const Duration _timeout = Duration(seconds: 10);
+
+  static Map<String, String> _jsonHeaders([String? token]) {
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'ngrok-skip-browser-warning': 'true',
+    };
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return headers;
+  }
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
@@ -73,9 +86,15 @@ class ApiService {
     }
   }
 
-  static Future<void> saveVaultCredentials(String usernameOrEmail, String password) async {
+  static Future<void> saveVaultCredentials(
+    String usernameOrEmail,
+    String password,
+  ) async {
     try {
-      await _secureStorage.write(key: 'vault_username', value: usernameOrEmail.trim());
+      await _secureStorage.write(
+        key: 'vault_username',
+        value: usernameOrEmail.trim(),
+      );
       await _secureStorage.write(key: 'vault_password', value: password);
       await _secureStorage.write(key: 'vault_enabled', value: 'true');
     } catch (e) {
@@ -140,10 +159,13 @@ class ApiService {
       final response = await http
           .post(
             Uri.parse('$baseUrl/token/'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'username': usernameOrEmail, 'password': password}),
+            headers: _jsonHeaders(),
+            body: jsonEncode({
+              'username': usernameOrEmail,
+              'password': password,
+            }),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(_timeout);
 
       final data = jsonDecode(response.body);
 
@@ -156,7 +178,7 @@ class ApiService {
       } else {
         String errorMsg = 'Invalid username or password.';
         if (data is Map && data['detail'] != null) {
-          errorMsg = data['detail'];
+          errorMsg = data['detail'].toString();
         } else if (data is Map && data['non_field_errors'] != null) {
           errorMsg = (data['non_field_errors'] as List).join(' ');
         }
@@ -166,7 +188,7 @@ class ApiService {
       return {
         'success': false,
         'error':
-            'Unable to connect to backend server.\nMake sure "adb reverse tcp:8000 tcp:8000" or server IP is active.\n($e)',
+            'Unable to connect to backend server.\nCheck your Server URL (USB localhost or Wireless Tunnel).\n($e)',
       };
     }
   }
@@ -177,14 +199,32 @@ class ApiService {
       if (token == null) return {'error': 'No authentication token found'};
 
       final baseUrl = await getBaseUrl();
-      final response = await http.get(
-        Uri.parse('$baseUrl/auth/me/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-      return jsonDecode(response.body);
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/auth/me/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) {
+          final prefs = await SharedPreferences.getInstance();
+          if (decoded['first_name'] != null) {
+            await prefs.setString('first_name', decoded['first_name'].toString());
+          }
+          if (decoded['last_name'] != null) {
+            await prefs.setString('last_name', decoded['last_name'].toString());
+          }
+          if (decoded['org_name'] != null) {
+            await prefs.setString('org_name', decoded['org_name'].toString());
+          }
+          if (decoded['role'] != null) {
+            await prefs.setString('role', decoded['role'].toString());
+          }
+          return decoded;
+        }
+      }
+      return {'error': 'HTTP ${response.statusCode}'};
     } catch (e) {
       return {'error': 'Connection failed: $e'};
     }
@@ -204,30 +244,34 @@ class ApiService {
       if (profileImage != null) {
         var request = http.MultipartRequest('PATCH', uri);
         request.headers['Authorization'] = 'Bearer $token';
-        
+        request.headers['ngrok-skip-browser-warning'] = 'true';
+
         data.forEach((key, value) {
           if (value != null) {
             request.fields[key] = value.toString();
           }
         });
 
-        request.files.add(await http.MultipartFile.fromPath(
-          'profile_picture',
-          profileImage.path,
-        ));
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'profile_picture',
+            profileImage.path,
+          ),
+        );
 
-        var streamedResponse = await request.send();
+        var streamedResponse = await request.send().timeout(
+          const Duration(seconds: 20),
+        );
         var response = await http.Response.fromStream(streamedResponse);
         return jsonDecode(response.body);
       } else {
-        final response = await http.patch(
-          uri,
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode(data),
-        );
+        final response = await http
+            .patch(
+              uri,
+              headers: _jsonHeaders(token),
+              body: jsonEncode(data),
+            )
+            .timeout(_timeout);
         return jsonDecode(response.body);
       }
     } catch (e) {
@@ -238,10 +282,12 @@ class ApiService {
   static Future<Map<String, dynamic>> verifyOrgCode(String code) async {
     try {
       final baseUrl = await getBaseUrl();
-      final response = await http.get(
-        Uri.parse('$baseUrl/churches/verify-code/?code=$code'),
-        headers: {'Content-Type': 'application/json'},
-      );
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/churches/verify-code/?code=$code'),
+            headers: _jsonHeaders(),
+          )
+          .timeout(_timeout);
       return jsonDecode(response.body);
     } catch (e) {
       return {'error': 'Connection failed: $e'};
@@ -258,27 +304,34 @@ class ApiService {
 
       if (profileImage != null) {
         var request = http.MultipartRequest('POST', uri);
-        
+        request.headers['ngrok-skip-browser-warning'] = 'true';
+
         data.forEach((key, value) {
           if (value != null) {
             request.fields[key] = value.toString();
           }
         });
 
-        request.files.add(await http.MultipartFile.fromPath(
-          'profile_picture',
-          profileImage.path,
-        ));
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'profile_picture',
+            profileImage.path,
+          ),
+        );
 
-        var streamedResponse = await request.send();
+        var streamedResponse = await request.send().timeout(
+          const Duration(seconds: 20),
+        );
         var response = await http.Response.fromStream(streamedResponse);
         return jsonDecode(response.body);
       } else {
-        final response = await http.post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(data),
-        );
+        final response = await http
+            .post(
+              uri,
+              headers: _jsonHeaders(),
+              body: jsonEncode(data),
+            )
+            .timeout(_timeout);
         return jsonDecode(response.body);
       }
     } catch (e) {
@@ -292,11 +345,13 @@ class ApiService {
   ) async {
     try {
       final baseUrl = await getBaseUrl();
-      final response = await http.post(
-        Uri.parse('$baseUrl/verify-email/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'otp': otp}),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/verify-email/'),
+            headers: _jsonHeaders(),
+            body: jsonEncode({'email': email, 'otp': otp}),
+          )
+          .timeout(_timeout);
       return jsonDecode(response.body);
     } catch (e) {
       return {'error': 'Connection failed: $e'};
@@ -307,18 +362,19 @@ class ApiService {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
-      final response = await http.get(
-        Uri.parse('$baseUrl/announcements/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-      final data = jsonDecode(response.body);
-      if (data is Map && data.containsKey('results')) {
-        return data['results'];
-      } else if (data is List) {
-        return data;
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/announcements/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map && data.containsKey('results')) {
+          return data['results'] as List<dynamic>;
+        } else if (data is List) {
+          return data;
+        }
       }
       return [];
     } catch (e) {
@@ -330,15 +386,15 @@ class ApiService {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
-      final response = await http.get(
-        Uri.parse('$baseUrl/mobile-dashboard/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/mobile-dashboard/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) return data;
       }
       return null;
     } catch (e) {
@@ -346,23 +402,27 @@ class ApiService {
     }
   }
 
-  static Future<bool> createAnnouncement(String title, String content, String audience, String announcementType) async {
+  static Future<bool> createAnnouncement(
+    String title,
+    String content,
+    String audience,
+    String announcementType,
+  ) async {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
-      final response = await http.post(
-        Uri.parse('$baseUrl/announcements/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'title': title,
-          'content': content,
-          'audience': audience,
-          'announcement_type': announcementType,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/announcements/'),
+            headers: _jsonHeaders(token),
+            body: jsonEncode({
+              'title': title,
+              'content': content,
+              'audience': audience,
+              'announcement_type': announcementType,
+            }),
+          )
+          .timeout(_timeout);
       return response.statusCode == 201;
     } catch (e) {
       debugPrint('Error creating announcement: $e');
@@ -374,11 +434,13 @@ class ApiService {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/announcements/$id/'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-      return response.statusCode == 204;
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/announcements/$id/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      return response.statusCode == 204 || response.statusCode == 200;
     } catch (e) {
       return false;
     }
@@ -394,19 +456,25 @@ class ApiService {
       final body = memberId != null
           ? jsonEncode({'member_id': memberId})
           : jsonEncode({});
-      final response = await http.post(
-        Uri.parse('$baseUrl/attendance/sessions/$sessionId/scan/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: body,
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/attendance/sessions/$sessionId/scan/'),
+            headers: _jsonHeaders(token),
+            body: body,
+          )
+          .timeout(_timeout);
       final data = jsonDecode(response.body);
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return {'success': true, 'message': data['message'] ?? 'Attendance recorded successfully!'};
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Attendance recorded successfully!',
+        };
       } else {
-        return {'success': false, 'message': data['error'] ?? data['detail'] ?? 'Attendance recording failed'};
+        return {
+          'success': false,
+          'message':
+              data['error'] ?? data['detail'] ?? 'Attendance recording failed',
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
@@ -422,19 +490,24 @@ class ApiService {
       final body = memberId != null
           ? jsonEncode({'member_id': memberId})
           : jsonEncode({});
-      final response = await http.post(
-        Uri.parse('$baseUrl/attendance/sessions/scan_today/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: body,
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/attendance/sessions/scan_today/'),
+            headers: _jsonHeaders(token),
+            body: body,
+          )
+          .timeout(_timeout);
       final data = jsonDecode(response.body);
       if (response.statusCode >= 200 && response.statusCode < 300) {
-        return {'success': true, 'message': data['message'] ?? 'Attendance recorded for today!'};
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Attendance recorded for today!',
+        };
       } else {
-        return {'success': false, 'message': data['error'] ?? data['detail'] ?? 'Check-in failed'};
+        return {
+          'success': false,
+          'message': data['error'] ?? data['detail'] ?? 'Check-in failed',
+        };
       }
     } catch (e) {
       return {'success': false, 'message': 'Connection error: $e'};
@@ -445,18 +518,19 @@ class ApiService {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
-      final response = await http.get(
-        Uri.parse('$baseUrl/members/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-      final data = jsonDecode(response.body);
-      if (data is Map && data.containsKey('results')) {
-        return data['results'];
-      } else if (data is List) {
-        return data;
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/members/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map && data.containsKey('results')) {
+          return data['results'] as List<dynamic>;
+        } else if (data is List) {
+          return data;
+        }
       }
       return [];
     } catch (e) {
@@ -468,18 +542,19 @@ class ApiService {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
-      final response = await http.get(
-        Uri.parse('$baseUrl/finances/donations/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-      final data = jsonDecode(response.body);
-      if (data is Map && data.containsKey('results')) {
-        return data['results'];
-      } else if (data is List) {
-        return data;
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/finances/donations/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map && data.containsKey('results')) {
+          return data['results'] as List<dynamic>;
+        } else if (data is List) {
+          return data;
+        }
       }
       return [];
     } catch (e) {
@@ -493,13 +568,12 @@ class ApiService {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
-      final response = await http.get(
-        Uri.parse('$baseUrl/chat/channels/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/chat/channels/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) return data;
@@ -511,7 +585,10 @@ class ApiService {
     }
   }
 
-  static Future<List<dynamic>> getChannelMessages(int channelId, {int? sinceId}) async {
+  static Future<List<dynamic>> getChannelMessages(
+    int channelId, {
+    int? sinceId,
+  }) async {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
@@ -519,13 +596,12 @@ class ApiService {
       if (sinceId != null) {
         url += '?since_id=$sinceId';
       }
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data is List) return data;
@@ -537,18 +613,20 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>?> sendChatMessage(int channelId, String content) async {
+  static Future<Map<String, dynamic>?> sendChatMessage(
+    int channelId,
+    String content,
+  ) async {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
-      final response = await http.post(
-        Uri.parse('$baseUrl/chat/channels/$channelId/messages/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'content': content}),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/chat/channels/$channelId/messages/'),
+            headers: _jsonHeaders(token),
+            body: jsonEncode({'content': content}),
+          )
+          .timeout(_timeout);
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
       }
@@ -562,13 +640,12 @@ class ApiService {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/chat/messages/$messageId/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/chat/messages/$messageId/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
       return response.statusCode == 200 || response.statusCode == 204;
     } catch (_) {
       return false;

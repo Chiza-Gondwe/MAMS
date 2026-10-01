@@ -7,7 +7,9 @@ export default function RegisterChurch() {
   const [formData, setFormData] = useState({
     church_name: '',
     org_type: 'CHURCH',
+    city: 'LUSAKA',
     first_name: '',
+    middle_name: '',
     last_name: '',
     email: '',
     phone: '',
@@ -58,7 +60,7 @@ export default function RegisterChurch() {
             <CheckCircle2 className="w-8 h-8 text-green-600" />
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Organization Registered!</h2>
-          <p className="text-slate-600 mb-6">You are now the admin for <strong>{successData.organization?.name}</strong>.</p>
+          <p className="text-slate-600 mb-6">You are now the admin for <strong>{successData.organization?.name}</strong> ({successData.organization?.city}).</p>
           
           <div className="bg-sky-50 border border-sky-100 p-4 rounded-xl mb-6">
             <h3 className="text-sky-800 font-medium mb-1 text-sm">Your Organization Code</h3>
@@ -107,14 +109,14 @@ export default function RegisterChurch() {
                   name="church_name"
                   value={formData.church_name}
                   onChange={handleChange}
-                  placeholder="e.g. Grace Fellowship Church or St. Jude School"
+                  placeholder="e.g. UCZ Trinity Congregation or St. Jude School"
                   className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
                   required
                 />
               </div>
             </div>
             
-            <div className="sm:col-span-2">
+            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Organization Type</label>
               <select
                 name="org_type"
@@ -127,11 +129,39 @@ export default function RegisterChurch() {
                 <option value="PTA">School / PTA</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">City / Town</label>
+              <select
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
+                required
+              >
+                <option value="LUSAKA">Lusaka</option>
+                <option value="KITWE">Kitwe</option>
+                <option value="NDOLA">Ndola</option>
+                <option value="KABWE">Kabwe</option>
+                <option value="CHINGOLA">Chingola</option>
+                <option value="MUFULIRA">Mufulira</option>
+                <option value="LIVINGSTONE">Livingstone</option>
+                <option value="LUANSHYA">Luanshya</option>
+                <option value="KASAMA">Kasama</option>
+                <option value="CHIPATA">Chipata</option>
+                <option value="SOLWEZI">Solwezi</option>
+                <option value="MANSA">Mansa</option>
+                <option value="MONGU">Mongu</option>
+                <option value="CHOMA">Choma</option>
+                <option value="MAZABUKA">Mazabuka</option>
+                <option value="KAFUE">Kafue</option>
+              </select>
+            </div>
           </div>
 
           <div className="pt-2 border-t border-slate-100">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Admin Details</p>
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
                 <div className="relative">
@@ -141,10 +171,21 @@ export default function RegisterChurch() {
                     name="first_name"
                     value={formData.first_name}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
                     required
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Middle Name <span className="text-xs text-slate-400 font-normal">(Opt)</span></label>
+                <input
+                  type="text"
+                  name="middle_name"
+                  value={formData.middle_name}
+                  onChange={handleChange}
+                  placeholder="Optional"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
@@ -175,7 +216,7 @@ export default function RegisterChurch() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number (Optional)</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -183,7 +224,9 @@ export default function RegisterChurch() {
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
+                  placeholder="e.g. 0971234567"
                   className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
+                  required
                 />
               </div>
             </div>

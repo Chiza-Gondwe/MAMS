@@ -6,7 +6,7 @@
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS mams_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE mams_db;
+USE mams_v2;
 
 -- ============================================================
 -- 1. ORGANISATION

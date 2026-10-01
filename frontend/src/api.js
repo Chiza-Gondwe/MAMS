@@ -1,5 +1,5 @@
 // api.js - Fixed with proper JWT handling and error responses
-const API_BASE = '/api';
+const API_BASE = 'http://127.0.0.1:8000/api';
 
 const getToken = () => localStorage.getItem('access_token');
 const getRefreshToken = () => localStorage.getItem('refresh_token');
@@ -88,7 +88,7 @@ export const api = {
   updateMember: (id, data) => request(`/members/${id}/`, { method: 'PATCH', body: data instanceof FormData ? data : JSON.stringify(data) }),
   deleteMember: (id) => request(`/members/${id}/`, { method: 'DELETE' }),
   bulkDeleteMembers: (ids) => request('/members/bulk_delete/', { method: 'POST', body: JSON.stringify({ ids }) }),
-  register: (data) => request('/register/', { method: 'POST', body: JSON.stringify(data) }),
+  register: (data) => request('/register/', { method: 'POST', body: data }),
   verifyEmail: (email, otp) => request('/verify-email/', { method: 'POST', body: JSON.stringify({ email, otp }) }),
   resendOtp: (email) => request('/resend-otp/', { method: 'POST', body: JSON.stringify({ email }) }),
   registerChurch: (data) => request('/churches/register/', { method: 'POST', body: JSON.stringify(data) }),

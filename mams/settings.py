@@ -108,11 +108,11 @@ WSGI_APPLICATION = 'mams.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'mams_v2',
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': 'Ongani12?',
-        'HOST': 'localhost',
-        'PORT': '3307',
+        'NAME': os.getenv('DB_NAME', 'mams_db'),
+        'USER': os.getenv('DB_USER', 'root'),
+        'PASSWORD': os.getenv('DB_PASSWORD', '1234'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '3306'),
     }
 }
 
@@ -139,12 +139,22 @@ USE_I18N = True
 
 USE_TZ = True
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 CORS_ALLOW_ALL_ORIGINS = True
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.pythonanywhere.com',
+    'https://*.vercel.app',
+    'https://*.onrender.com',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+]
+
+os.makedirs(BASE_DIR / 'logs', exist_ok=True)
+os.makedirs(MEDIA_ROOT, exist_ok=True)
 
 LOGGING = {
     'version': 1,

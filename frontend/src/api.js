@@ -1,5 +1,5 @@
 // api.js - Fixed with proper JWT handling and error responses
-const API_BASE = 'http://127.0.0.1:8000/api';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 const getToken = () => localStorage.getItem('access_token');
 const getRefreshToken = () => localStorage.getItem('refresh_token');

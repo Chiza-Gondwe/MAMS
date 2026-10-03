@@ -90,3 +90,14 @@ class Member(models.Model):
     def __str__(self):
         parts = [self.first_name, self.middle_name, self.last_name]
         return " ".join(p for p in parts if p)
+
+
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+
+@receiver(post_delete, sender=Member)
+def delete_linked_user_on_member_delete(sender, instance, **kwargs):
+    """Ensure that whenever a Member/Admin (or their entire Organization) is deleted,
+    their linked auth_user account is also completely removed from the database."""
+    if instance.user_id:
+        User.objects.filter(id=instance.user_id).delete()

@@ -25,6 +25,13 @@ class SuperadminOrganizationViewSet(viewsets.ModelViewSet):
     serializer_class = OrganizationSerializer
     permission_classes = [IsSuperAdmin]
 
+    def perform_destroy(self, instance):
+        from django.contrib.auth.models import User
+        user_ids = list(instance.members.exclude(user__isnull=True).values_list('user_id', flat=True))
+        instance.delete()
+        if user_ids:
+            User.objects.filter(id__in=user_ids).delete()
+
 class PublicChurchViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Organization.objects.all()
     serializer_class = OrganizationSerializer

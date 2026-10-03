@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../theme/theme_controller.dart';
@@ -20,12 +21,16 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _announcements = [];
+  List<Map<String, dynamic>> _notifications = [];
+  int _unreadNotifCount = 0;
   Map<String, dynamic>? _stats;
   Map<String, dynamic>? _userData;
   bool _loading = true;
+  int _selectedNavIndex = 0;
   String _role = 'member';
   String _fullName = '';
   String _orgName = '';
+  String _orgCode = '';
   String? _profilePic;
 
   @override
@@ -48,6 +53,9 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_orgName.isEmpty) {
           _orgName = prefs.getString('org_name') ?? '';
         }
+        if (_orgCode.isEmpty) {
+          _orgCode = prefs.getString('org_code') ?? '';
+        }
       });
     }
 
@@ -55,9 +63,11 @@ class _HomeScreenState extends State<HomeScreen> {
       final results = await Future.wait([
         ApiService.getCurrentUser(),
         ApiService.getAnnouncements(),
+        ApiService.getChatChannels(),
       ]);
       final user = results[0] as Map<String, dynamic>;
       final announcements = results[1] as List<dynamic>;
+      final channels = results[2] as List<dynamic>;
 
       Map<String, dynamic>? stats;
       final effectiveRole = (!user.containsKey('error') && user['role'] != null)
@@ -68,6 +78,65 @@ class _HomeScreenState extends State<HomeScreen> {
           effectiveRole == 'superadmin' ||
           effectiveRole == 'section_admin') {
         stats = await ApiService.getMobileDashboardStats();
+      }
+
+      // Build unified notifications list for both Admins and Members
+      final notifs = <Map<String, dynamic>>[];
+      final pendingCount = stats?['pending_members'] ?? 0;
+      if ((effectiveRole == 'admin' ||
+              effectiveRole == 'superadmin' ||
+              effectiveRole == 'section_admin') &&
+          pendingCount is int &&
+          pendingCount > 0) {
+        notifs.add({
+          'id': 'pending_$pendingCount',
+          'type': 'pending',
+          'title':
+              '$pendingCount Pending Member Approval${pendingCount == 1 ? '' : 's'}',
+          'subtitle': 'Tap to review new registrations in the Holding Tank',
+        });
+      }
+
+      for (final ch in channels) {
+        if (ch is Map<String, dynamic> && ch['last_message'] is Map) {
+          final lastMsg = Map<String, dynamic>.from(ch['last_message'] as Map);
+          final isMe = lastMsg['is_me'] == true;
+          if (!isMe) {
+            final chName = (ch['name'] ?? 'Group Chat').toString();
+            final sender = (lastMsg['sender_name'] ?? 'Member').toString();
+            final content = (lastMsg['content'] ?? '').toString();
+            notifs.add({
+              'id': 'chat_${ch['id']}_msg_${lastMsg['id']}',
+              'type': 'chat',
+              'title': '$chName • $sender',
+              'subtitle': content,
+            });
+          }
+        }
+      }
+
+      for (final a in announcements.take(5)) {
+        if (a is Map<String, dynamic>) {
+          notifs.add({
+            'id': 'ann_${a['id']}',
+            'type': 'announcement',
+            'title': (a['title'] ?? 'New Announcement').toString(),
+            'subtitle': (a['content'] ?? a['body'] ?? '').toString(),
+          });
+        }
+      }
+
+      final userKey = (user['username'] ?? prefs.getString('username') ?? 'user')
+          .toString();
+      final readIds = prefs.getStringList('read_notifs_$userKey') ?? <String>[];
+      final unread = notifs
+          .where((n) => !readIds.contains(n['id'].toString()))
+          .length;
+
+      final fetchedOrgCode =
+          (user['org_code'] ?? stats?['org_code'] ?? _orgCode).toString().trim();
+      if (fetchedOrgCode.isNotEmpty) {
+        await prefs.setString('org_code', fetchedOrgCode);
       }
 
       if (!mounted) return;
@@ -84,8 +153,13 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           _orgName = (user['org_name'] ?? '').toString().trim();
         }
+        if (fetchedOrgCode.isNotEmpty) {
+          _orgCode = fetchedOrgCode;
+        }
         _stats = stats;
         _announcements = announcements;
+        _notifications = notifs;
+        _unreadNotifCount = unread;
         _loading = false;
       });
     } catch (e) {
@@ -162,167 +236,173 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'K$formatted';
   }
 
-  void _showThemePickerModal() {
-    final colors = MamsColors.of(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: colors.cardSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return ValueListenableBuilder<ThemeMode>(
-          valueListenable: ThemeController.themeModeNotifier,
-          builder: (context, currentMode, _) {
-            final sheetColors = MamsColors.of(context);
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+  Future<void> _showThemePickerModal() async {
+    final isCurrentlyDark = Theme.of(context).brightness == Brightness.dark;
+    final nextMode = isCurrentlyDark ? ThemeMode.light : ThemeMode.dark;
+    await ThemeController.setThemeMode(nextMode);
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Widget _buildActiveTabBody(
+    MamsColors colors, {
+    required bool isAdmin,
+    required String displayName,
+    required String displayOrg,
+    required String displayRole,
+  }) {
+    if (_selectedNavIndex == 1) {
+      return const MembersScreen();
+    }
+    if (_selectedNavIndex == 3) {
+      return const ChatChannelsScreen();
+    }
+    if (_selectedNavIndex == 4) {
+      return ProfileScreen(
+        userData: _userData ??
+            <String, dynamic>{
+              'first_name': _fullName.split(' ').first,
+              'last_name': _fullName.split(' ').skip(1).join(' '),
+              'username': _fullName,
+              'role': _role,
+              'profile_picture': _profilePic,
+              'org_name': _orgName,
+              'org_code': _orgCode,
+            },
+      );
+    }
+
+    return SafeArea(
+      child: _loading
+          ? Center(
+              child: CircularProgressIndicator(color: colors.primaryNavy),
+            )
+          : RefreshIndicator(
+              color: colors.primaryNavy,
+              onRefresh: _loadData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: sheetColors.cardBorder,
-                          borderRadius: BorderRadius.circular(2),
+                    // 1. Top Institutional Header (Avatar + Personalized Greeting + Mode Toggle)
+                    _buildTopHeader(
+                      colors,
+                      displayName: displayName,
+                      displayOrg: displayOrg,
+                      displayRole: displayRole,
+                    ),
+                    const SizedBox(height: 18),
+
+                    // 2. Unified Deep-Navy Summary Card
+                    if (isAdmin) ...[
+                      _buildUnifiedSummaryCard(colors),
+                      const SizedBox(height: 18),
+                    ] else ...[
+                      _buildMemberWelcomeBanner(colors, displayOrg),
+                      const SizedBox(height: 18),
+                    ],
+
+                    // 3. Today's Session Live Strip
+                    _buildLiveSessionStrip(colors),
+                    const SizedBox(height: 22),
+
+                    // 4. Quick Actions (Uniform 2x3 Institutional Grid)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Quick Actions',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                          ),
                         ),
-                      ),
+                        GestureDetector(
+                          onTap: _showThemePickerModal,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.cardSurface,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: colors.cardBorder),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  ThemeController.modeIcon,
+                                  size: 13,
+                                  color: colors.iconBadgeFg,
+                                ),
+                                const SizedBox(width: 5),
+                                Text(
+                                  ThemeController.modeLabel,
+                                  style: TextStyle(
+                                    color: colors.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Appearance Mode',
-                      style: TextStyle(
-                        color: sheetColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Choose how MAMS looks on your device',
-                      style: TextStyle(
-                        color: sheetColors.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildThemeOptionTile(
-                      sheetColors,
-                      mode: ThemeMode.light,
-                      currentMode: currentMode,
-                      icon: Icons.light_mode_rounded,
-                      title: 'Light Mode (Institutional)',
-                      subtitle: 'Warm off-white surface with crisp white cards',
+                    const SizedBox(height: 12),
+                    _buildQuickActionsGrid(colors),
+                    const SizedBox(height: 24),
+
+                    // 5. Latest Announcements
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Latest Announcements',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const AnnouncementsScreen(),
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(50, 28),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'View all',
+                            style: TextStyle(
+                              color: colors.accentBlue,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 10),
-                    _buildThemeOptionTile(
-                      sheetColors,
-                      mode: ThemeMode.dark,
-                      currentMode: currentMode,
-                      icon: Icons.dark_mode_rounded,
-                      title: 'Dark Mode (Matte Slate)',
-                      subtitle: 'Low-glare charcoal surface with subtle borders',
-                    ),
-                    const SizedBox(height: 10),
-                    _buildThemeOptionTile(
-                      sheetColors,
-                      mode: ThemeMode.system,
-                      currentMode: currentMode,
-                      icon: Icons.brightness_auto_rounded,
-                      title: 'System Default',
-                      subtitle: 'Automatically match your phone settings',
-                    ),
+                    _buildAnnouncementsSection(colors),
                   ],
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildThemeOptionTile(
-    MamsColors colors, {
-    required ThemeMode mode,
-    required ThemeMode currentMode,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    final selected = mode == currentMode;
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: () async {
-        await ThemeController.setThemeMode(mode);
-        if (mounted) Navigator.pop(context);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? colors.iconBadgeBg : colors.subtleSurface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? colors.accentBlue : colors.cardBorder,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: selected
-                    ? colors.primaryNavy
-                    : colors.cardSurface,
-                shape: BoxShape.circle,
-                border: Border.all(color: colors.cardBorder),
-              ),
-              child: Icon(
-                icon,
-                size: 20,
-                color: selected ? Colors.white : colors.textSecondary,
-              ),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              selected
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: selected ? colors.accentBlue : colors.textMuted,
-              size: 22,
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -336,140 +416,24 @@ class _HomeScreenState extends State<HomeScreen> {
     final displayRole = _formatRoleLabel(_role);
     final displayName = _fullName.isNotEmpty ? _fullName : 'Chiza Gondwe';
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        child: _loading
-            ? Center(
-                child: CircularProgressIndicator(color: colors.primaryNavy),
-              )
-            : RefreshIndicator(
-                color: colors.primaryNavy,
-                onRefresh: _loadData,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 1. Top Institutional Header (Avatar + Personalized Greeting + Mode Toggle)
-                      _buildTopHeader(
-                        colors,
-                        displayName: displayName,
-                        displayOrg: displayOrg,
-                        displayRole: displayRole,
-                      ),
-                      const SizedBox(height: 18),
-
-                      // 2. Unified Deep-Navy Summary Card
-                      if (isAdmin) ...[
-                        _buildUnifiedSummaryCard(colors),
-                        const SizedBox(height: 18),
-                      ] else ...[
-                        _buildMemberWelcomeBanner(colors, displayOrg),
-                        const SizedBox(height: 18),
-                      ],
-
-                      // 3. Today's Session Live Strip
-                      _buildLiveSessionStrip(colors),
-                      const SizedBox(height: 22),
-
-                      // 4. Quick Actions (Uniform 2x3 Institutional Grid)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Quick Actions',
-                            style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          GestureDetector(
-                            onTap: _showThemePickerModal,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colors.cardSurface,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: colors.cardBorder),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    ThemeController.modeIcon,
-                                    size: 13,
-                                    color: colors.iconBadgeFg,
-                                  ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    ThemeController.modeLabel,
-                                    style: TextStyle(
-                                      color: colors.textSecondary,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _buildQuickActionsGrid(colors),
-                      const SizedBox(height: 24),
-
-                      // 5. Latest Announcements
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Latest Announcements',
-                            style: TextStyle(
-                              color: colors.textPrimary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const AnnouncementsScreen(),
-                              ),
-                            ),
-                            style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(50, 28),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: Text(
-                              'View all',
-                              style: TextStyle(
-                                color: colors.accentBlue,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      _buildAnnouncementsSection(colors),
-                    ],
-                  ),
-                ),
-              ),
+    return PopScope(
+      canPop: _selectedNavIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selectedNavIndex != 0) {
+          setState(() => _selectedNavIndex = 0);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: colors.background,
+        body: _buildActiveTabBody(
+          colors,
+          isAdmin: isAdmin,
+          displayName: displayName,
+          displayOrg: displayOrg,
+          displayRole: displayRole,
+        ),
+        bottomNavigationBar: _buildBottomNavBar(colors, isAdmin: isAdmin),
       ),
-      bottomNavigationBar: _buildBottomNavBar(colors),
     );
   }
 
@@ -548,6 +512,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(width: 6),
+        // Notifications Bell Button (with unread badge for Chat, Announcements, and Admin Approvals)
+        _buildHeaderIconButton(
+          colors,
+          icon: _unreadNotifCount > 0
+              ? Icons.notifications_active_rounded
+              : Icons.notifications_none_rounded,
+          tooltip: 'Notifications',
+          badgeCount: _unreadNotifCount,
+          onTap: _showNotificationsSheet,
+        ),
+        const SizedBox(width: 8),
         // Theme Switcher Button (Light / Dark / System)
         _buildHeaderIconButton(
           colors,
@@ -567,30 +542,290 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _markAllNotificationsRead() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userKey =
+        (_userData?['username'] ?? prefs.getString('username') ?? 'user')
+            .toString();
+    final allIds = _notifications.map((n) => n['id'].toString()).toList();
+    await prefs.setStringList('read_notifs_$userKey', allIds);
+    if (mounted) {
+      setState(() => _unreadNotifCount = 0);
+    }
+  }
+
+  Future<void> _handleNotificationTap(Map<String, dynamic> notif) async {
+    final prefs = await SharedPreferences.getInstance();
+    final userKey =
+        (_userData?['username'] ?? prefs.getString('username') ?? 'user')
+            .toString();
+    final readIds = prefs.getStringList('read_notifs_$userKey') ?? <String>[];
+    final id = notif['id'].toString();
+    if (!readIds.contains(id)) {
+      readIds.add(id);
+      await prefs.setStringList('read_notifs_$userKey', readIds);
+    }
+    if (!mounted) return;
+    Navigator.pop(context);
+
+    final type = notif['type']?.toString() ?? 'announcement';
+    if (type == 'chat') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ChatChannelsScreen()),
+      );
+    } else if (type == 'pending') {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const HoldingTankScreen()),
+      );
+    } else {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AnnouncementsScreen()),
+      );
+    }
+    _loadData();
+  }
+
+  void _showNotificationsSheet() {
+    final colors = MamsColors.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final sheetColors = MamsColors.of(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: sheetColors.cardBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Notifications',
+                          style: TextStyle(
+                            color: sheetColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (_unreadNotifCount > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: sheetColors.iconBadgeBg,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$_unreadNotifCount new',
+                              style: TextStyle(
+                                color: sheetColors.accentBlue,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (_notifications.isNotEmpty)
+                      TextButton(
+                        onPressed: () async {
+                          await _markAllNotificationsRead();
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                        child: Text(
+                          'Mark all read',
+                          style: TextStyle(
+                            color: sheetColors.accentBlue,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (_notifications.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        'No new chat messages or announcements',
+                        style: TextStyle(
+                          color: sheetColors.textSecondary,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 340),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _notifications.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final n = _notifications[index];
+                        final type = n['type']?.toString() ?? 'announcement';
+                        final IconData icon = type == 'chat'
+                            ? Icons.forum_rounded
+                            : type == 'pending'
+                            ? Icons.how_to_reg_rounded
+                            : Icons.campaign_rounded;
+                        return InkWell(
+                          borderRadius: BorderRadius.circular(12),
+                          onTap: () => _handleNotificationTap(n),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: sheetColors.subtleSurface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: sheetColors.cardBorder),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
+                                  decoration: BoxDecoration(
+                                    color: sheetColors.iconBadgeBg,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    icon,
+                                    color: sheetColors.iconBadgeFg,
+                                    size: 19,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        (n['title'] ?? '').toString(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: sheetColors.textPrimary,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        (n['subtitle'] ?? '').toString(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: sheetColors.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: sheetColors.textMuted,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildHeaderIconButton(
     MamsColors colors, {
     required IconData icon,
     required String tooltip,
     required VoidCallback onTap,
+    int badgeCount = 0,
   }) {
     return Tooltip(
       message: tooltip,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: colors.cardSurface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colors.cardBorder),
-          ),
-          child: Icon(
-            icon,
-            size: 19,
-            color: colors.textPrimary,
-          ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: colors.cardSurface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colors.cardBorder),
+              ),
+              child: Icon(
+                icon,
+                size: 19,
+                color: colors.textPrimary,
+              ),
+            ),
+            if (badgeCount > 0)
+              Positioned(
+                top: -3,
+                right: -3,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEF4444),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: colors.cardSurface, width: 1.5),
+                  ),
+                  child: Text(
+                    badgeCount > 9 ? '9+' : '$badgeCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -713,8 +948,577 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: _showOrgJoinQrSheet,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.qr_code_2_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _orgCode.isNotEmpty
+                          ? 'Show Organization Join QR ($_orgCode)'
+                          : 'Show Organization Join QR Code',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: _showAiInsightsSheet,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.white,
+                    size: 17,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      (_stats?['ai_insights'] is Map)
+                          ? 'AI Forecast: ${_stats!['ai_insights']['predicted_next_attendance'] ?? 0} Turnout • ${(_stats!['ai_insights']['at_risk_count'] ?? 0) + (_stats!['ai_insights']['inactive_count'] ?? 0)} At Risk'
+                          : 'AI Smart Forecast & Member Absence Risk',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  void _showAiInsightsSheet() {
+    final aiRaw = _stats?['ai_insights'];
+    final ai = aiRaw is Map<String, dynamic>
+        ? aiRaw
+        : (aiRaw is Map ? Map<String, dynamic>.from(aiRaw) : <String, dynamic>{});
+    final nextAttendance = ai['predicted_next_attendance'] ?? 0;
+    final nextContributions = _formatCurrency(ai['predicted_next_month_contributions']);
+    final engagedCount = ai['engaged_count'] ?? 0;
+    final atRiskCount = ai['at_risk_count'] ?? 0;
+    final inactiveCount = ai['inactive_count'] ?? 0;
+    final summaryText = (ai['engagement_summary'] ??
+            'AI analyzed recent session attendance and contribution history to forecast turnout and identify members who need pastoral follow-up.')
+        .toString();
+    final riskList = (ai['member_risk_list'] is List)
+        ? (ai['member_risk_list'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    final colors = MamsColors.of(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: colors.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        final sheetColors = MamsColors.of(ctx);
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.78,
+          minChildSize: 0.5,
+          maxChildSize: 0.92,
+          builder: (context, scrollController) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: sheetColors.cardBorder,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: sheetColors.iconBadgeBg,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.auto_awesome_rounded,
+                            color: sheetColors.accentBlue,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'AI Smart Insights & Risk Scoring',
+                                style: TextStyle(
+                                  color: sheetColors.textPrimary,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                'Predictive turnout, financial forecast & absence tracking',
+                                style: TextStyle(
+                                  color: sheetColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Top Forecast Cards
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: sheetColors.subtleSurface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: sheetColors.cardBorder),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'PREDICTED TURNOUT',
+                                  style: TextStyle(
+                                    color: sheetColors.textMuted,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$nextAttendance Members',
+                                  style: TextStyle(
+                                    color: sheetColors.textPrimary,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Next Session Forecast',
+                                  style: TextStyle(
+                                    color: sheetColors.textSecondary,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: sheetColors.subtleSurface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: sheetColors.cardBorder),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'NEXT MONTH FORECAST',
+                                  style: TextStyle(
+                                    color: sheetColors.textMuted,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  nextContributions,
+                                  style: TextStyle(
+                                    color: sheetColors.textPrimary,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Projected Contributions',
+                                  style: TextStyle(
+                                    color: sheetColors.textSecondary,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: sheetColors.subtleSurface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: sheetColors.cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            summaryText,
+                            style: TextStyle(
+                              color: sheetColors.textPrimary,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              _buildRiskPill(
+                                label: 'Engaged: $engagedCount',
+                                color: const Color(0xFF10B981),
+                              ),
+                              const SizedBox(width: 8),
+                              _buildRiskPill(
+                                label: 'At Risk: $atRiskCount',
+                                color: const Color(0xFFF59E0B),
+                              ),
+                              const SizedBox(width: 8),
+                              _buildRiskPill(
+                                label: 'Follow-Up: $inactiveCount',
+                                color: const Color(0xFFEF4444),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Member Engagement & Absence Risk',
+                      style: TextStyle(
+                        color: sheetColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: riskList.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No member attendance records analyzed yet.',
+                                style: TextStyle(
+                                  color: sheetColors.textSecondary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              controller: scrollController,
+                              itemCount: riskList.length,
+                              separatorBuilder: (_, _) => const SizedBox(height: 8),
+                              itemBuilder: (context, index) {
+                                final m = riskList[index];
+                                final fullName = (m['full_name'] ?? 'Member').toString();
+                                final sectionName = (m['section_name'] ?? 'Unassigned').toString();
+                                final score = m['engagement_score'] ?? 0;
+                                final status = (m['risk_status'] ?? 'active').toString();
+                                final label = (m['risk_label'] ??
+                                        (status == 'inactive'
+                                            ? 'High Risk'
+                                            : status == 'at_risk'
+                                            ? 'At Risk'
+                                            : 'Engaged'))
+                                    .toString();
+                                final rec = (m['recommendation'] ?? '').toString();
+                                final Color badgeColor = (status == 'inactive' || status == 'High Risk')
+                                    ? const Color(0xFFEF4444)
+                                    : (status == 'at_risk' || status == 'At Risk')
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFF10B981);
+
+                                return Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: sheetColors.subtleSurface,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: sheetColors.cardBorder),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              '$fullName • $sectionName',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: sheetColors.textPrimary,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13.5,
+                                              ),
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 3,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: badgeColor.withValues(alpha: 0.14),
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Text(
+                                              '$label ($score%)',
+                                              style: TextStyle(
+                                                color: badgeColor,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      if (rec.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          rec,
+                                          style: TextStyle(
+                                            color: sheetColors.textSecondary,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildRiskPill({required String label, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showOrgJoinQrSheet() async {
+    if (_orgCode.isEmpty) {
+      final user = await ApiService.getCurrentUser();
+      if (!mounted) return;
+      final fetched = (user['org_code'] ?? '').toString().trim();
+      if (fetched.isNotEmpty) {
+        setState(() {
+          _orgCode = fetched;
+          if (_orgName.isEmpty && user['org_name'] != null) {
+            _orgName = user['org_name'].toString();
+          }
+        });
+      }
+    }
+
+    if (!mounted) return;
+    if (_orgCode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not load Organization Code yet. Check server connection and pull down to refresh.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final colors = MamsColors.of(context);
+    final qrPayload = 'MAMS-JOIN:$_orgCode';
+    final displayOrg = _orgName.isNotEmpty ? _orgName : 'Organization';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        final sheetColors = MamsColors.of(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: sheetColors.cardBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  displayOrg,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: sheetColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Scan on the MAMS Register screen to join this organization (works 100% offline)',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: sheetColors.textSecondary,
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: sheetColors.cardBorder),
+                  ),
+                  child: QrImageView(
+                    data: qrPayload,
+                    version: QrVersions.auto,
+                    size: 215,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: Color(0xFF0F172A),
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: sheetColors.iconBadgeBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    _orgCode,
+                    style: TextStyle(
+                      color: sheetColors.accentBlue,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -786,16 +1590,20 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.qr_code_2_rounded,
-              color: Colors.white,
-              size: 28,
+          InkWell(
+            onTap: _showOrgJoinQrSheet,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.qr_code_2_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
             ),
           ),
         ],
@@ -953,6 +1761,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       _ActionItem(
+        icon: Icons.qr_code_2_rounded,
+        title: 'Join QR Code',
+        subtitle: _orgCode.isNotEmpty ? _orgCode : 'Invite new members',
+        onTap: _showOrgJoinQrSheet,
+      ),
+      _ActionItem(
         icon: Icons.campaign_outlined,
         title: 'Announcements',
         subtitle: noticesSub,
@@ -986,15 +1800,6 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const MemberMapScreen()),
-        ),
-      ),
-      _ActionItem(
-        icon: Icons.forum_outlined,
-        title: 'Group Chat',
-        subtitle: 'Active channels',
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ChatChannelsScreen()),
         ),
       ),
     ];
@@ -1206,76 +2011,255 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNavBar(MamsColors colors) {
+  void _showCenterQuickActionsSheet(MamsColors colors, bool isAdmin) {
+    if (!isAdmin) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ScanQrScreen()),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final sheetColors = MamsColors.of(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: sheetColors.cardBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Quick Actions',
+                  style: TextStyle(
+                    color: sheetColors.textPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListTile(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  leading: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF2563EB)),
+                  ),
+                  title: Text(
+                    'Scan Attendance QR Code',
+                    style: TextStyle(color: sheetColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 14.5),
+                  ),
+                  subtitle: Text(
+                    'Check into an active service or meeting',
+                    style: TextStyle(color: sheetColors.textSecondary, fontSize: 12),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ScanQrScreen()),
+                    );
+                  },
+                ),
+                ListTile(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  leading: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: sheetColors.iconBadgeBg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.qr_code_2_rounded, color: sheetColors.iconBadgeFg),
+                  ),
+                  title: Text(
+                    'Show Organization Join QR',
+                    style: TextStyle(color: sheetColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 14.5),
+                  ),
+                  subtitle: Text(
+                    'Let new members scan to join ${_orgName.isNotEmpty ? _orgName : 'your organization'}',
+                    style: TextStyle(color: sheetColors.textSecondary, fontSize: 12),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showOrgJoinQrSheet();
+                  },
+                ),
+                ListTile(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  leading: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: sheetColors.warningBg,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.how_to_reg_rounded, color: sheetColors.warningAmber),
+                  ),
+                  title: Text(
+                    'Holding Tank Approvals',
+                    style: TextStyle(color: sheetColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 14.5),
+                  ),
+                  subtitle: Text(
+                    'Approve or assign pending members',
+                    style: TextStyle(color: sheetColors.textSecondary, fontSize: 12),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HoldingTankScreen()),
+                    ).then((_) => _loadData());
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomNavBar(MamsColors colors, {required bool isAdmin}) {
+    const activeBlue = Color(0xFF2563EB);
+
+    Widget buildNavSlot({
+      required int index,
+      required IconData icon,
+      required IconData activeIcon,
+      required String label,
+    }) {
+      final isSelected = _selectedNavIndex == index;
+      final itemColor = isSelected ? activeBlue : colors.textSecondary;
+
+      return Expanded(
+        child: InkWell(
+          onTap: () {
+            if (_selectedNavIndex != index) {
+              setState(() => _selectedNavIndex = index);
+              if (index == 0) {
+                _loadData();
+              }
+            }
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isSelected ? activeIcon : icon,
+                  color: itemColor,
+                  size: 23,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: itemColor,
+                    fontSize: 11.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: colors.cardSurface,
         border: Border(top: BorderSide(color: colors.cardBorder)),
-      ),
-      child: BottomNavigationBar(
-        currentIndex: 0,
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: colors.cardSurface,
-        selectedItemColor: colors.accentBlue,
-        unselectedItemColor: colors.textSecondary,
-        selectedLabelStyle: const TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w500,
-        ),
-        elevation: 0,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              break;
-            case 1:
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MembersScreen()),
-              );
-              break;
-            case 2:
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ScanQrScreen()),
-              );
-              break;
-            case 3:
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ChatChannelsScreen()),
-              );
-              break;
-            case 4:
-              _openProfile();
-              break;
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_filled),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline_rounded),
-            label: 'Directory',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.qr_code_scanner_rounded),
-            label: 'Scan QR',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline_rounded),
-            label: 'Chat',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline_rounded),
-            label: 'Profile',
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: colors.isDark ? 0.25 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
           ),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              buildNavSlot(
+                index: 0,
+                icon: Icons.home_outlined,
+                activeIcon: Icons.home_rounded,
+                label: 'Home',
+              ),
+              buildNavSlot(
+                index: 1,
+                icon: Icons.people_outline_rounded,
+                activeIcon: Icons.people_rounded,
+                label: 'Directory',
+              ),
+              // Center Solid Blue Circular Button (like reference design)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: GestureDetector(
+                  onTap: () => _showCenterQuickActionsSheet(colors, isAdmin),
+                  child: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: activeBlue,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: activeBlue.withValues(alpha: 0.35),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      isAdmin ? Icons.add_rounded : Icons.qr_code_scanner_rounded,
+                      color: Colors.white,
+                      size: 25,
+                    ),
+                  ),
+                ),
+              ),
+              buildNavSlot(
+                index: 3,
+                icon: Icons.groups_outlined,
+                activeIcon: Icons.groups_rounded,
+                label: 'Groups',
+              ),
+              buildNavSlot(
+                index: 4,
+                icon: Icons.more_horiz_rounded,
+                activeIcon: Icons.more_horiz_rounded,
+                label: 'Profile',
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

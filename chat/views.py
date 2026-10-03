@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from .models import ChatChannel, ChatMessage
@@ -116,6 +117,7 @@ class ChannelListAPIView(APIView):
 
 class ChannelMessagesAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request, channel_id):
         if not hasattr(request.user, 'member_profile'):
@@ -159,14 +161,31 @@ class ChannelMessagesAPIView(APIView):
         if not authorized_channels.filter(id=channel.id).exists():
             return Response({'error': 'You do not have permission to post in this channel.'}, status=status.HTTP_403_FORBIDDEN)
 
-        content = request.data.get('content', '').strip()
-        if not content:
-            return Response({'error': 'Message content cannot be empty'}, status=status.HTTP_400_BAD_REQUEST)
+        content = (request.data.get('content') or '').strip()
+        attachment = request.FILES.get('attachment')
+        attachment_type = (request.data.get('attachment_type') or '').strip().lower() or None
+
+        if not content and not attachment:
+            return Response({'error': 'Message must include text or a media attachment.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if attachment and not attachment_type:
+            mime = (getattr(attachment, 'content_type', '') or '').lower()
+            fname = (getattr(attachment, 'name', '') or '').lower()
+            if mime.startswith('audio/') or fname.endswith(('.m4a', '.aac', '.mp3', '.wav', '.ogg', '.webm', '.opus', '.3gp')):
+                attachment_type = 'audio'
+            elif mime.startswith('video/') or fname.endswith(('.mp4', '.mov', '.mkv', '.avi', '.3gpp')):
+                attachment_type = 'video'
+            elif mime.startswith('image/') or fname.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+                attachment_type = 'image'
+            else:
+                attachment_type = 'file'
 
         message = ChatMessage.objects.create(
             channel=channel,
             sender=profile,
-            content=content
+            content=content,
+            attachment=attachment,
+            attachment_type=attachment_type,
         )
 
         serializer = ChatMessageSerializer(message, context={'request': request})
@@ -191,3 +210,35 @@ class ChatMessageDetailAPIView(APIView):
 
         message.delete()
         return Response({'message': 'Message deleted successfully.'}, status=status.HTTP_200_OK)
+
+
+class ChatBulkDeleteAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if not hasattr(request.user, 'member_profile'):
+            return Response({'error': 'Member profile required'}, status=status.HTTP_403_FORBIDDEN)
+
+        profile = request.user.member_profile
+        raw_ids = request.data.get('message_ids', [])
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return Response({'error': 'Provide a list of message_ids to delete.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_ids = [int(i) for i in raw_ids if str(i).isdigit()]
+        messages = ChatMessage.objects.filter(id__in=valid_ids).select_related('channel')
+
+        deleted_ids = []
+        for msg in messages:
+            is_sender = (msg.sender_id == profile.id)
+            is_admin = (profile.role in ['superadmin', 'admin'] and msg.channel.organization_id == profile.organization_id)
+            if is_sender or is_admin:
+                deleted_ids.append(msg.id)
+
+        if deleted_ids:
+            ChatMessage.objects.filter(id__in=deleted_ids).delete()
+
+        return Response({
+            'message': f'Deleted {len(deleted_ids)} message(s).',
+            'deleted_ids': deleted_ids,
+        }, status=status.HTTP_200_OK)
+

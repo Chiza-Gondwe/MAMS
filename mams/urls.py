@@ -63,6 +63,7 @@ def home(request):
 
 from communications.views import save_webpush_subscription
 from church_profile.views import AnalyticsAPIView, MobileDashboardAPIView
+from church_profile.ai_engine import AIDraftMessageAPIView
 
 from church_profile.views import SuperadminOrganizationViewSet
 from members.views import create_local_admin, change_password, get_current_user, update_my_profile, request_password_reset, confirm_password_reset
@@ -85,6 +86,7 @@ urlpatterns = [
     path('api/resend-otp/', resend_otp, name='resend_otp'),
     path('api/analytics/', AnalyticsAPIView.as_view(), name='analytics'),
     path('api/mobile-dashboard/', MobileDashboardAPIView.as_view(), name='mobile_dashboard'),
+    path('api/ai/draft-message/', AIDraftMessageAPIView.as_view(), name='ai_draft_message'),
     path('api/chat/', include('chat.urls')),
     path('webpush/', include('webpush.urls')),
     path('api/webpush/subscribe/', save_webpush_subscription, name='save_webpush_subscription'),

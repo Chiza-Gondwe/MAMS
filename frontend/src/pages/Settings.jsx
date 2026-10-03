@@ -10,6 +10,8 @@ export default function Settings() {
   
   const [settings, setSettings] = useState({
     name: '',
+    org_code: '',
+    org_type: 'CHURCH',
     address: '',
     phone: '',
     email: '',
@@ -26,6 +28,8 @@ export default function Settings() {
       .then(data => {
         setSettings({
           name: data.name || '',
+          org_code: data.org_code || '',
+          org_type: data.org_type || 'CHURCH',
           address: data.address || '',
           phone: data.phone || '',
           email: data.email || '',
@@ -135,11 +139,99 @@ export default function Settings() {
             
             {activeTab === 'profile' && (
               <div className="animate-in fade-in duration-300 space-y-6">
-                <h2 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-100 pb-2">Church Details</h2>
+                <h2 className="text-lg font-bold text-slate-800 mb-6 border-b border-slate-100 pb-2">Organization Details</h2>
                 
+                {settings.org_code && (
+                  <div className="bg-sky-50 border border-sky-200 rounded-xl p-5 flex flex-col sm:flex-row items-center gap-5">
+                    <div className="bg-white p-2.5 rounded-xl border border-sky-200 shrink-0 shadow-sm">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(`${window.location.origin}/register?org_code=${encodeURIComponent(settings.org_code)}`)}`}
+                        alt="Organization Join QR Code"
+                        className="w-32 h-32"
+                      />
+                    </div>
+                    <div className="flex-1 text-center sm:text-left">
+                      <p className="text-xs font-bold uppercase tracking-wider text-sky-700">Organization Join Code & QR</p>
+                      <p className="text-xl font-mono font-bold text-slate-800 tracking-widest mt-1">{settings.org_code}</p>
+                      <p className="text-xs text-slate-600 mt-1">
+                        Share this QR code or join code with new {settings.org_type === 'PTA' ? 'parents and teachers' : 'congregation members'} so they can register directly into <strong>{settings.name || 'your organization'}</strong>.
+                      </p>
+                      <div className="mt-3.5 flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(`${window.location.origin}/register?org_code=${encodeURIComponent(settings.org_code)}`)}`;
+                            const orgTitle = settings.name || 'Organization';
+                            const isPTA = settings.org_type === 'PTA';
+                            const win = window.open('', '_blank');
+                            win.document.write(`
+                              <!DOCTYPE html>
+                              <html>
+                                <head>
+                                  <title>${orgTitle} - Join QR Poster</title>
+                                  <style>
+                                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px; margin: 0; background: #fff; }
+                                    .poster { max-width: 650px; margin: 0 auto; border: 4px solid #1e3a8a; border-radius: 24px; padding: 40px 30px; box-sizing: border-box; }
+                                    h1 { font-size: 32px; color: #0f172a; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1px; }
+                                    h2 { font-size: 20px; color: #2563eb; margin: 0 0 24px 0; font-weight: 600; }
+                                    .qr-wrapper { margin: 15px auto; padding: 18px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 20px; display: inline-block; }
+                                    .qr-wrapper img { width: 340px; height: 340px; display: block; }
+                                    .code-box { font-size: 28px; font-weight: 800; letter-spacing: 3px; color: #1e3a8a; background: #eff6ff; border: 2px solid #bfdbfe; padding: 10px 26px; border-radius: 12px; display: inline-block; margin-top: 16px; }
+                                    .instructions { font-size: 17px; color: #334155; margin: 22px 0 8px 0; font-weight: bold; }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="poster">
+                                    <h1>${orgTitle}</h1>
+                                    <h2>Scan to Join Our ${isPTA ? 'School / PTA' : 'Congregation'} on MAMS</h2>
+                                    <div class="qr-wrapper">
+                                      <img src="${qrUrl}" alt="Join QR Code" />
+                                    </div>
+                                    <br />
+                                    <div class="code-box">${settings.org_code}</div>
+                                    <p class="instructions">Scan this QR code in the MAMS Mobile App (or with your phone camera) to register!</p>
+                                  </div>
+                                  <script>window.onload = function() { window.print(); };</script>
+                                </body>
+                              </html>
+                            `);
+                            win.document.close();
+                          }}
+                          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                        >
+                          Print Big Join Poster
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=800x800&format=png&data=${encodeURIComponent(`${window.location.origin}/register?org_code=${encodeURIComponent(settings.org_code)}`)}`;
+                              const response = await fetch(qrUrl);
+                              const blob = await response.blob();
+                              const blobUrl = URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = blobUrl;
+                              link.download = `${(settings.name || 'Organization').replace(/\s+/g, '-')}-${settings.org_code}-QR.png`;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              URL.revokeObjectURL(blobUrl);
+                            } catch {
+                              window.open(`https://api.qrserver.com/v1/create-qr-code/?size=800x800&format=png&data=${encodeURIComponent(`${window.location.origin}/register?org_code=${encodeURIComponent(settings.org_code)}`)}`, '_blank');
+                            }
+                          }}
+                          className="px-3.5 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-semibold rounded-lg shadow-sm transition-colors"
+                        >
+                          Download High-Res QR (PNG)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Official Church Name</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Official Organization Name</label>
                     <input type="text" name="name" value={settings.name} onChange={handleChange} className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400" />
                   </div>
                   

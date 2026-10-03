@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { formatDate } from '../utils';
-import { Trash2, Plus, Search, X } from 'lucide-react';
+import { Trash2, Plus, Search, X, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Announcements() {
@@ -12,6 +12,9 @@ export default function Announcements() {
   const [preview, setPreview] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiTone, setAiTone] = useState('warm');
+  const [aiGenerating, setAiGenerating] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -26,6 +29,32 @@ export default function Announcements() {
   const { user } = useAuth();
 
   const [ministries, setMinistries] = useState([]);
+
+  const handleGenerateWithAI = async () => {
+    const topicText = aiPrompt.trim() || formData.title.trim() || formData.content.trim();
+    if (!topicText) {
+      alert('Enter a few words or topic first (e.g. "Youth choir practice Saturday 2pm")');
+      return;
+    }
+    setAiGenerating(true);
+    try {
+      const res = await api.draftMessageWithAI({
+        prompt: topicText,
+        tone: aiTone,
+        audience: formData.audience,
+        message_type: 'announcement',
+      });
+      setFormData(prev => ({
+        ...prev,
+        title: res.title || prev.title,
+        content: res.content || prev.content,
+      }));
+    } catch (err) {
+      alert(err.message || 'Failed to generate with AI');
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -162,6 +191,43 @@ export default function Announcements() {
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* AI Smart Announcement Drafter */}
+              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    AI Smart Announcement Drafter
+                  </span>
+                  <select
+                    value={aiTone}
+                    onChange={e => setAiTone(e.target.value)}
+                    className="text-xs px-2 py-1 rounded border border-blue-200 bg-white text-slate-700 font-medium focus:outline-none"
+                  >
+                    <option value="warm">Warm & Welcoming</option>
+                    <option value="formal">Official & Formal</option>
+                    <option value="urgent">Urgent Notice</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={aiPrompt}
+                    onChange={e => setAiPrompt(e.target.value)}
+                    placeholder="Brief notes, e.g. Choir rehearsal Saturday 14:00..."
+                    className="flex-1 px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-xs focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGenerateWithAI}
+                    disabled={aiGenerating}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-60"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {aiGenerating ? 'Drafting...' : 'Generate with AI'}
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
                 <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400" />

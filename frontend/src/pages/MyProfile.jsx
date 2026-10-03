@@ -192,7 +192,14 @@ export default function MyProfile() {
         // If neither: omit lat/lng → backend auto-geocodes from address field
       }
 
-      await api.updateMember(user.member_id, payload);
+      const updated = await api.updateMember(user.member_id, payload);
+      if (updated && updated.latitude && updated.longitude) {
+        setPickedLat(parseFloat(updated.latitude));
+        setPickedLng(parseFloat(updated.longitude));
+      } else if (locationCleared) {
+        setPickedLat(null);
+        setPickedLng(null);
+      }
       await refreshUser();
       setLocationCleared(false);
       alert("Profile updated successfully!");

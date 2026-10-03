@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../theme/theme_controller.dart';
 
 class ContributionsScreen extends StatefulWidget {
   const ContributionsScreen({super.key});
@@ -34,6 +35,7 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MamsColors.of(context);
     double total = _donations.fold(
       0,
       (sum, item) =>
@@ -41,83 +43,125 @@ class _ContributionsScreenState extends State<ContributionsScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: colors.background,
       appBar: AppBar(
-        title: const Text('My Contributions'),
-        backgroundColor: const Color(0xFF4F46E5),
-        foregroundColor: Colors.white,
+        title: Text(
+          'My Contributions',
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: colors.cardSurface,
+        foregroundColor: colors.textPrimary,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: colors.cardBorder),
+        ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator(color: colors.primaryNavy))
           : RefreshIndicator(
+              color: colors.primaryNavy,
               onRefresh: _fetchDonations,
               child: Column(
                 children: [
                   Container(
                     width: double.infinity,
                     margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: colors.cardSurface,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      border: Border.all(color: colors.cardBorder),
                     ),
                     child: Column(
                       children: [
-                        const Text(
-                          'Total Given',
-                          style: TextStyle(color: Colors.grey, fontSize: 14),
+                        Text(
+                          'TOTAL CONTRIBUTIONS RECORDED',
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'ZK ${total.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0F172A),
+                          'K ${total.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                            color: colors.textPrimary,
                           ),
                         ),
                       ],
                     ),
                   ),
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: _donations.length,
-                      itemBuilder: (context, index) {
-                        final item = _donations[index];
-                        final amountVal =
-                            double.tryParse(item['amount']?.toString() ?? '0') ??
-                            0;
-                        return ListTile(
-                          leading: const CircleAvatar(
-                            backgroundColor: Color(0xFF10B981),
-                            child: Icon(Icons.check, color: Colors.white),
-                          ),
-                          title: Text(
-                            'ZK ${amountVal.toStringAsFixed(2)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(item['date'] ?? ''),
-                          trailing: Text(
-                            item['status'] ?? 'Completed',
-                            style: const TextStyle(
-                              color: Color(0xFF10B981),
-                              fontWeight: FontWeight.bold,
+                    child: _donations.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No contribution records yet',
+                              style: TextStyle(
+                                color: colors.textSecondary,
+                                fontSize: 14.5,
+                              ),
                             ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _donations.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final item = _donations[index];
+                              final amountVal =
+                                  double.tryParse(
+                                    item['amount']?.toString() ?? '0',
+                                  ) ??
+                                  0;
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: colors.cardSurface,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: colors.cardBorder),
+                                ),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: colors.successBg,
+                                    child: Icon(
+                                      Icons.check_rounded,
+                                      color: colors.successGreen,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    'K ${amountVal.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    (item['date'] ?? '').toString(),
+                                    style: TextStyle(
+                                      color: colors.textSecondary,
+                                    ),
+                                  ),
+                                  trailing: Text(
+                                    (item['status'] ?? 'Recorded').toString(),
+                                    style: TextStyle(
+                                      color: colors.successGreen,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12.5,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                          tileColor: Colors.white,
-                          shape: const Border(
-                            bottom: BorderSide(color: Color(0xFFF1F5F9)),
-                          ),
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),

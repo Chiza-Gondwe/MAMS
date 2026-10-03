@@ -7,8 +7,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
   static const _secureStorage = FlutterSecureStorage();
-  // Default URL: Laptop Wi-Fi IP (works wirelessly over Wi-Fi / Hotspot with runserver 0.0.0.0:8000)
-  static const String defaultBaseUrl = 'http://172.16.49.62:8000/api';
+  // Default URL: Laptop Wi-Fi / Hotspot IP (works wirelessly with runserver 0.0.0.0:8000)
+  static const String defaultBaseUrl = 'http://10.77.132.57:8000/api';
   static const Duration _timeout = Duration(seconds: 10);
 
   static Map<String, String> _jsonHeaders([String? token]) {
@@ -25,7 +25,15 @@ class ApiService {
 
   static Future<String> getBaseUrl() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('custom_base_url') ?? defaultBaseUrl;
+    final saved = prefs.getString('custom_base_url');
+    if (saved == null ||
+        saved.isEmpty ||
+        saved.contains('172.16.50.123') ||
+        saved.contains('127.0.0.1:8000')) {
+      await prefs.setString('custom_base_url', defaultBaseUrl);
+      return defaultBaseUrl;
+    }
+    return saved;
   }
 
   static Future<void> setBaseUrl(String url) async {
@@ -218,8 +226,38 @@ class ApiService {
           if (decoded['org_name'] != null) {
             await prefs.setString('org_name', decoded['org_name'].toString());
           }
+          if (decoded['org_code'] != null &&
+              decoded['org_code'].toString().trim().isNotEmpty) {
+            await prefs.setString(
+              'org_code',
+              decoded['org_code'].toString().trim(),
+            );
+          }
           if (decoded['role'] != null) {
             await prefs.setString('role', decoded['role'].toString());
+          }
+          if (decoded['member_id'] != null) {
+            await prefs.setInt(
+              'member_id',
+              int.tryParse(decoded['member_id'].toString()) ?? 0,
+            );
+          }
+          if (decoded['section_name'] != null) {
+            await prefs.setString(
+              'section_name',
+              decoded['section_name'].toString(),
+            );
+          }
+          if (decoded['zone_name'] != null) {
+            await prefs.setString('zone_name', decoded['zone_name'].toString());
+          }
+          if (decoded['profile_picture'] != null) {
+            await prefs.setString(
+              'profile_picture',
+              decoded['profile_picture'].toString(),
+            );
+          } else {
+            await prefs.remove('profile_picture');
           }
           return decoded;
         }
@@ -241,6 +279,7 @@ class ApiService {
       final baseUrl = await getBaseUrl();
       final uri = Uri.parse('$baseUrl/auth/update_profile/');
 
+      Map<String, dynamic> result;
       if (profileImage != null) {
         var request = http.MultipartRequest('PATCH', uri);
         request.headers['Authorization'] = 'Bearer $token';
@@ -263,7 +302,7 @@ class ApiService {
           const Duration(seconds: 20),
         );
         var response = await http.Response.fromStream(streamedResponse);
-        return jsonDecode(response.body);
+        result = jsonDecode(response.body) as Map<String, dynamic>;
       } else {
         final response = await http
             .patch(
@@ -272,8 +311,21 @@ class ApiService {
               body: jsonEncode(data),
             )
             .timeout(_timeout);
-        return jsonDecode(response.body);
+        result = jsonDecode(response.body) as Map<String, dynamic>;
       }
+
+      if (result.containsKey('profile_picture')) {
+        final prefs = await SharedPreferences.getInstance();
+        if (result['profile_picture'] != null) {
+          await prefs.setString(
+            'profile_picture',
+            result['profile_picture'].toString(),
+          );
+        } else {
+          await prefs.remove('profile_picture');
+        }
+      }
+      return result;
     } catch (e) {
       return {'error': 'Connection failed: $e'};
     }
@@ -446,6 +498,36 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> verifyMemberForAttendance([
+    int? memberId,
+  ]) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final query = memberId != null ? '?member_id=$memberId' : '';
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/attendance/sessions/verify_member/$query'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data is Map && data['member'] != null) {
+        return {
+          'success': true,
+          'member': Map<String, dynamic>.from(data['member'] as Map),
+        };
+      }
+      return {
+        'success': false,
+        'message': (data is Map ? (data['error'] ?? data['detail']) : null) ??
+            'Member not found',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: $e'};
+    }
+  }
+
   static Future<Map<String, dynamic>> scanAttendance(
     int sessionId, [
     int? memberId,
@@ -468,12 +550,22 @@ class ApiService {
         return {
           'success': true,
           'message': data['message'] ?? 'Attendance recorded successfully!',
+          'session_title': data['session_title'],
+          'session_date': data['session_date'],
+          'already_checked_in': data['already_checked_in'] == true,
+          'is_first_visit': data['is_first_visit'] == true,
+          'member': data['member'] is Map
+              ? Map<String, dynamic>.from(data['member'] as Map)
+              : null,
         };
       } else {
         return {
           'success': false,
           'message':
               data['error'] ?? data['detail'] ?? 'Attendance recording failed',
+          'member': (data is Map && data['member'] is Map)
+              ? Map<String, dynamic>.from(data['member'] as Map)
+              : null,
         };
       }
     } catch (e) {
@@ -502,11 +594,22 @@ class ApiService {
         return {
           'success': true,
           'message': data['message'] ?? 'Attendance recorded for today!',
+          'session_title': data['session_title'],
+          'session_date': data['session_date'],
+          'already_checked_in': data['already_checked_in'] == true,
+          'is_first_visit': data['is_first_visit'] == true,
+          'member': data['member'] is Map
+              ? Map<String, dynamic>.from(data['member'] as Map)
+              : null,
         };
       } else {
         return {
           'success': false,
-          'message': data['error'] ?? data['detail'] ?? 'Check-in failed',
+          'message':
+              data['message'] ?? data['error'] ?? data['detail'] ?? 'Check-in failed',
+          'member': (data is Map && data['member'] is Map)
+              ? Map<String, dynamic>.from(data['member'] as Map)
+              : null,
         };
       }
     } catch (e) {
@@ -615,14 +718,42 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> sendChatMessage(
     int channelId,
-    String content,
-  ) async {
+    String content, {
+    String? attachmentPath,
+    String? attachmentType,
+  }) async {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
+      final uri = Uri.parse('$baseUrl/chat/channels/$channelId/messages/');
+
+      if (attachmentPath != null && attachmentPath.isNotEmpty) {
+        final request = http.MultipartRequest('POST', uri);
+        if (token != null) {
+          request.headers['Authorization'] = 'Bearer $token';
+        }
+        if (content.isNotEmpty) {
+          request.fields['content'] = content;
+        }
+        if (attachmentType != null && attachmentType.isNotEmpty) {
+          request.fields['attachment_type'] = attachmentType;
+        }
+        request.files.add(
+          await http.MultipartFile.fromPath('attachment', attachmentPath),
+        );
+        final streamedResponse = await request.send().timeout(
+          const Duration(seconds: 60),
+        );
+        final response = await http.Response.fromStream(streamedResponse);
+        if (response.statusCode == 201) {
+          return jsonDecode(response.body);
+        }
+        return null;
+      }
+
       final response = await http
           .post(
-            Uri.parse('$baseUrl/chat/channels/$channelId/messages/'),
+            uri,
             headers: _jsonHeaders(token),
             body: jsonEncode({'content': content}),
           )
@@ -651,4 +782,63 @@ class ApiService {
       return false;
     }
   }
+
+  static Future<List<int>> bulkDeleteChatMessages(List<int> messageIds) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/chat/messages/bulk-delete/'),
+            headers: _jsonHeaders(token),
+            body: jsonEncode({'message_ids': messageIds}),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map && data['deleted_ids'] is List) {
+          return (data['deleted_ids'] as List)
+              .map((e) => int.tryParse(e.toString()) ?? 0)
+              .where((id) => id > 0)
+              .toList();
+        }
+        return messageIds;
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>?> draftMessageWithAI({
+    required String prompt,
+    String tone = 'warm',
+    String audience = 'all',
+  }) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/ai/draft-message/'),
+            headers: _jsonHeaders(token),
+            body: jsonEncode({
+              'prompt': prompt,
+              'tone': tone,
+              'audience': audience,
+            }),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          return data;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
 }
+

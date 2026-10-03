@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../theme/theme_controller.dart';
 import 'create_announcement_screen.dart';
 
 class AnnouncementsScreen extends StatefulWidget {
@@ -55,12 +56,26 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MamsColors.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: colors.background,
       appBar: AppBar(
-        title: const Text('Announcements'),
-        backgroundColor: const Color(0xFF4F46E5),
-        foregroundColor: Colors.white,
+        title: Text(
+          'Announcements',
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: colors.cardSurface,
+        foregroundColor: colors.textPrimary,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: colors.cardBorder),
+        ),
       ),
       floatingActionButton: _isLeader()
           ? FloatingActionButton(
@@ -75,22 +90,38 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                   _fetchAnnouncements();
                 }
               },
-              backgroundColor: const Color(0xFF4F46E5),
-              child: const Icon(Icons.add, color: Colors.white),
+              backgroundColor: const Color(0xFF2563EB),
+              child: const Icon(Icons.add_rounded, color: Colors.white),
             )
           : null,
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator(color: colors.primaryNavy))
           : RefreshIndicator(
+              color: colors.primaryNavy,
               onRefresh: _fetchAnnouncements,
               child: _announcements.isEmpty
                   ? ListView(
-                      children: const [
-                        SizedBox(height: 100),
+                      children: [
+                        const SizedBox(height: 120),
                         Center(
-                          child: Text(
-                            'No recent announcements',
-                            style: TextStyle(color: Colors.grey),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.campaign_outlined,
+                                size: 48,
+                                color: colors.textMuted,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No recent announcements',
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -100,135 +131,155 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                       itemCount: _announcements.length,
                       itemBuilder: (context, index) {
                         final item = _announcements[index];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                        final bodyText =
+                            (item['content'] ?? item['body'] ?? item['message'] ?? '')
+                                .toString();
+                        final createdStr = (item['created_at'] ?? '').toString();
+                        final dateDisplay = createdStr.length >= 10
+                            ? createdStr.substring(0, 10)
+                            : createdStr;
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: colors.cardSurface,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: colors.cardBorder),
                           ),
-                          elevation: 2,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        item['title'] ?? 'Notice',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 18,
-                                        ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      (item['title'] ?? 'Notice').toString(),
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 16,
                                       ),
                                     ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.indigo.withValues(
-                                          alpha: 0.1,
-                                        ),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        item['target_audience'] ?? 'All',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.indigo,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: colors.iconBadgeBg,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      (item['target_audience'] ??
+                                              item['audience'] ??
+                                              'All')
+                                          .toString()
+                                          .toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: colors.iconBadgeFg,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                  ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                bodyText,
+                                style: TextStyle(
+                                  color: colors.textSecondary,
+                                  fontSize: 14,
+                                  height: 1.4,
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  item['message'] ?? '',
-                                  style: const TextStyle(color: Colors.black87),
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      item['created_at']?.substring(0, 10) ??
-                                          '',
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 12,
-                                      ),
+                              ),
+                              const SizedBox(height: 14),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    dateDisplay,
+                                    style: TextStyle(
+                                      color: colors.textMuted,
+                                      fontSize: 12,
                                     ),
-                                    if (_isLeader())
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.delete,
-                                          color: Colors.red,
-                                          size: 20,
-                                        ),
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(),
-                                        onPressed: () async {
-                                          final confirm = await showDialog<bool>(
-                                            context: context,
-                                            builder: (ctx) => AlertDialog(
-                                              title: const Text(
-                                                'Delete Announcement?',
+                                  ),
+                                  if (_isLeader())
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.delete_outline_rounded,
+                                        color: colors.dangerRed,
+                                        size: 20,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      onPressed: () async {
+                                        final confirm = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            backgroundColor: colors.cardSurface,
+                                            title: Text(
+                                              'Delete Announcement?',
+                                              style: TextStyle(
+                                                color: colors.textPrimary,
                                               ),
-                                              content: const Text(
-                                                'Are you sure you want to delete this announcement?',
-                                              ),
-                                              actions: [
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(ctx, false),
-                                                  child: const Text('Cancel'),
-                                                ),
-                                                TextButton(
-                                                  onPressed: () =>
-                                                      Navigator.pop(ctx, true),
-                                                  child: const Text(
-                                                    'Delete',
-                                                    style: TextStyle(
-                                                      color: Colors.red,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
                                             ),
-                                          );
-                                          if (confirm == true) {
-                                            final success =
-                                                await ApiService.deleteAnnouncement(
-                                                  item['id'],
-                                                );
-                                            if (success) {
-                                              _fetchAnnouncements();
-                                            } else {
-                                              if (mounted) {
-                                                ScaffoldMessenger.of(
-                                                  context,
-                                                ).showSnackBar(
-                                                  const SnackBar(
-                                                    content: Text(
-                                                      'Failed to delete announcement',
-                                                    ),
+                                            content: Text(
+                                              'Are you sure you want to delete this announcement?',
+                                              style: TextStyle(
+                                                color: colors.textSecondary,
+                                              ),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, false),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, true),
+                                                child: Text(
+                                                  'Delete',
+                                                  style: TextStyle(
+                                                    color: colors.dangerRed,
+                                                    fontWeight: FontWeight.w700,
                                                   ),
-                                                );
-                                              }
-                                            }
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirm == true) {
+                                          final success =
+                                              await ApiService.deleteAnnouncement(
+                                                item['id'],
+                                              );
+                                          if (success) {
+                                            _fetchAnnouncements();
+                                          } else if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Failed to delete announcement',
+                                                ),
+                                              ),
+                                            );
                                           }
-                                        },
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                                        }
+                                      },
+                                    ),
+                                ],
+                              ),
+                            ],
                           ),
                         );
                       },

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../theme/theme_controller.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
   final String email;
@@ -43,78 +44,133 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MamsColors.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: colors.background,
       appBar: AppBar(
-        title: const Text('Verify Email'),
-        backgroundColor: Colors.transparent,
+        title: Text(
+          'Verify Email',
+          style: TextStyle(color: colors.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: colors.background,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        scrolledUnderElevation: 0,
+        foregroundColor: colors.textPrimary,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Icon(Icons.mark_email_read, size: 64, color: Color(0xFF4CAF50)),
-            const SizedBox(height: 24),
-            const Text(
-              'Enter Verification Code',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'We sent a 6-digit code to ${widget.email}. Please enter it below.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 32),
-            if (_errorMessage != null)
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: colors.cardSurface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.cardBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: colors.isDark ? 0.25 : 0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
-                child: Text(
-                  _errorMessage!,
-                  style: TextStyle(color: Colors.red.shade700, fontSize: 13),
-                ),
-              ),
-            TextField(
-              controller: _otpController,
-              textAlign: TextAlign.center,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(fontSize: 32, letterSpacing: 8, fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                hintText: '000000',
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+              ],
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _verify,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: const Color(0xFF4CAF50),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: _isLoading 
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('Verify', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: colors.iconBadgeBg,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: colors.cardBorder),
+                    ),
+                    child: Icon(Icons.mark_email_read_outlined, size: 30, color: colors.iconBadgeFg),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Enter Verification Code',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: colors.textPrimary),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'We sent a 6-digit code to ${widget.email}. Please enter it below.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13.5, height: 1.4),
+                ),
+                const SizedBox(height: 24),
+                if (_errorMessage != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: colors.dangerRed.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: colors.dangerRed.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      _errorMessage!,
+                      style: TextStyle(color: colors.dangerRed, fontSize: 13),
+                    ),
+                  ),
+                TextField(
+                  controller: _otpController,
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(
+                    fontSize: 28,
+                    letterSpacing: 8,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: '000000',
+                    hintStyle: TextStyle(color: colors.textMuted, letterSpacing: 8),
+                    filled: true,
+                    fillColor: colors.subtleSurface,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colors.cardBorder),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colors.cardBorder),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: colors.accentBlue, width: 1.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _verify,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    backgroundColor: colors.primaryNavy,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Verify Email', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
+
+

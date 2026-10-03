@@ -64,6 +64,69 @@ export default function DashboardLayout() {
 
   const { user } = useAuth();
   const activeUser = user || { username: 'Admin', role: 'admin' };
+  const [showJoinQRModal, setShowJoinQRModal] = useState(false);
+  const [orgSettings, setOrgSettings] = useState({ org_code: '', name: '', org_type: '' });
+
+  useEffect(() => {
+    api.getSettings()
+      .then(data => {
+        if (data && (data.org_code || data.name)) {
+          setOrgSettings({
+            org_code: data.org_code || '',
+            name: data.name || '',
+            org_type: data.org_type || 'CHURCH',
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const dynamicOrgCode = activeUser.org_code || orgSettings.org_code || '';
+  const dynamicOrgName = activeUser.org_name || orgSettings.name || 'Organization';
+  const isPTA = (activeUser.org_type || orgSettings.org_type) === 'PTA';
+  const joinQrTargetUrl = dynamicOrgCode
+    ? `${window.location.origin}/register?org_code=${encodeURIComponent(dynamicOrgCode)}`
+    : '';
+  const joinQrImageUrl = dynamicOrgCode
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(joinQrTargetUrl)}`
+    : '';
+
+  const printOrgJoinPoster = () => {
+    if (!dynamicOrgCode) return;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${dynamicOrgName} - Join QR Poster</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px; margin: 0; background: #fff; }
+            .poster { max-width: 650px; margin: 0 auto; border: 4px solid #0284c7; border-radius: 24px; padding: 40px 30px; box-sizing: border-box; }
+            h1 { font-size: 30px; color: #0f172a; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1px; }
+            h2 { font-size: 20px; color: #0284c7; margin: 0 0 24px 0; font-weight: 600; }
+            .qr-wrapper { margin: 15px auto; padding: 16px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 20px; display: inline-block; }
+            .qr-wrapper img { width: 300px; height: 300px; display: block; }
+            .code-box { font-size: 26px; font-weight: 800; letter-spacing: 3px; color: #0369a1; background: #e0f2fe; padding: 10px 24px; border-radius: 12px; display: inline-block; margin-top: 16px; }
+            .instructions { font-size: 17px; color: #334155; margin: 20px 0 8px 0; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <div class="poster">
+            <h1>${dynamicOrgName}</h1>
+            <h2>Scan to Join Our ${isPTA ? 'School / PTA' : 'Congregation'} on MAMS</h2>
+            <div class="qr-wrapper">
+              <img src="${joinQrImageUrl}" alt="Join QR Code" />
+            </div>
+            <br />
+            <div class="code-box">${dynamicOrgCode}</div>
+            <p class="instructions">Scan this QR code in the MAMS Mobile App (or with your phone camera) to register!</p>
+          </div>
+          <script>window.onload = function() { window.print(); };</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   return (
     <div className="flex h-screen bg-transparent animate-fade-in-up">
@@ -71,12 +134,64 @@ export default function DashboardLayout() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Topbar onSearch={handleSearch} />
         <main className="flex-1 overflow-y-auto px-8 py-8">
+          {showJoinQRModal && dynamicOrgCode && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center border border-slate-200">
+                <h3 className="text-xl font-bold text-slate-800">{dynamicOrgName}</h3>
+                <p className="text-xs font-semibold text-sky-600 uppercase tracking-wider mt-1">
+                  {isPTA ? 'School / PTA' : 'Church'} Registration Join QR Code
+                </p>
+                <div className="my-5 p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl inline-block">
+                  <img src={joinQrImageUrl} alt="Join QR Code" className="w-60 h-60 mx-auto" />
+                </div>
+                <div className="mb-4">
+                  <p className="text-xs text-slate-500 mb-1">Organization Join Code</p>
+                  <span className="inline-block bg-sky-50 border border-sky-200 text-sky-800 font-mono font-bold text-xl px-5 py-2 rounded-xl tracking-widest">
+                    {dynamicOrgCode}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mb-5">
+                  New {isPTA ? 'parents & teachers' : 'members'} can scan this QR code on the MAMS Register screen or enter the code above to join <strong>{dynamicOrgName}</strong>.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={printOrgJoinPoster}
+                    className="flex-1 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+                  >
+                    Print Join Poster
+                  </button>
+                  <button
+                    onClick={() => setShowJoinQRModal(false)}
+                    className="px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2.5 rounded-xl transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <Routes>
             <Route path="/" element={
               <div className="space-y-6">
-                <div className="mb-6">
-                  <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Welcome back, {activeUser.first_name || activeUser.username}</h1>
-                  <p className="text-sm text-slate-500 mt-1">Here's what's happening in your ministry today.</p>
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Welcome back, {activeUser.first_name || activeUser.username}</h1>
+                    <p className="text-sm text-slate-500 mt-1">Here's what's happening in your {isPTA ? 'school / PTA' : 'ministry'} today.</p>
+                  </div>
+                  {activeUser.role !== 'member' && dynamicOrgCode && (
+                    <div className="flex items-center gap-3 bg-white/80 backdrop-blur-md border border-sky-200/80 px-4 py-2.5 rounded-xl shadow-sm">
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Join Code</p>
+                        <p className="text-sm font-mono font-bold text-sky-700 tracking-wider">{dynamicOrgCode}</p>
+                      </div>
+                      <button
+                        onClick={() => setShowJoinQRModal(true)}
+                        className="px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-all"
+                      >
+                        Show Join QR
+                      </button>
+                    </div>
+                  )}
                 </div>
                 
                 {activeUser.role === 'member' ? (

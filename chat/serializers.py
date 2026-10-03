@@ -5,6 +5,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.SerializerMethodField()
     sender_role = serializers.SerializerMethodField()
     sender_profile_picture = serializers.SerializerMethodField()
+    attachment_url = serializers.SerializerMethodField()
     is_me = serializers.SerializerMethodField()
 
     class Meta:
@@ -17,6 +18,8 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             'sender_role',
             'sender_profile_picture',
             'content',
+            'attachment_url',
+            'attachment_type',
             'created_at',
             'is_me',
         ]
@@ -34,6 +37,14 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             if request:
                 return request.build_absolute_uri(obj.sender.profile_picture.url)
             return obj.sender.profile_picture.url
+        return None
+
+    def get_attachment_url(self, obj):
+        if obj.attachment:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.attachment.url)
+            return obj.attachment.url
         return None
 
     def get_is_me(self, obj):
@@ -65,10 +76,29 @@ class ChatChannelSerializer(serializers.ModelSerializer):
     def get_last_message(self, obj):
         latest = obj.messages.order_by('-created_at').first()
         if latest:
+            request = self.context.get('request')
+            is_me = bool(
+                request
+                and hasattr(request.user, 'member_profile')
+                and latest.sender_id == request.user.member_profile.id
+            )
+            preview_content = latest.content
+            if not preview_content:
+                if latest.attachment_type == 'audio':
+                    preview_content = '🎤 Voice note'
+                elif latest.attachment_type == 'video':
+                    preview_content = '🎬 Video'
+                elif latest.attachment_type == 'image':
+                    preview_content = '📷 Photo'
+                elif latest.attachment:
+                    preview_content = '📎 Attachment'
             return {
                 'id': latest.id,
-                'content': latest.content,
+                'content': preview_content,
+                'attachment_type': latest.attachment_type,
+                'sender_id': latest.sender_id,
                 'sender_name': f"{latest.sender.first_name} {latest.sender.last_name}".strip(),
+                'is_me': is_me,
                 'created_at': latest.created_at.isoformat(),
             }
         return None

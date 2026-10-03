@@ -1,5 +1,5 @@
 // components/Topbar.jsx
-import { Search, Bell, User, ChevronDown, Megaphone } from 'lucide-react';
+import { Search, Bell, User, ChevronDown, Megaphone, MessageSquare, UserCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useState, useEffect, useRef } from 'react';
@@ -70,10 +70,13 @@ export default function Topbar({ onSearch }) {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        const [annsData, eventsData, sermonsData] = await Promise.all([
-          api.getAnnouncements(),
-          api.getEvents(),
-          api.getSermons()
+        const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || user?.role === 'section_admin';
+        const [annsData, eventsData, sermonsData, channelsData, pendingData] = await Promise.all([
+          api.getAnnouncements().catch(() => []),
+          api.getEvents().catch(() => []),
+          api.getSermons().catch(() => []),
+          api.getChatChannels().catch(() => []),
+          isAdmin ? api.getPendingMembers().catch(() => []) : Promise.resolve([])
         ]);
         
         const anns = (annsData.results || annsData || []).map(a => ({
@@ -87,19 +90,39 @@ export default function Topbar({ onSearch }) {
         const srms = (sermonsData.results || sermonsData || []).map(s => ({
           id: `srm_${s.id}`, type: 'sermon', title: `New Sermon: ${s.title}`, content: `By ${s.speaker}`, date: new Date(s.created_at)
         }));
+
+        const chatNotifs = (channelsData.results || channelsData || [])
+          .filter(c => c.last_message && !c.last_message.is_me)
+          .map(c => ({
+            id: `chat_${c.id}_msg_${c.last_message.id}`,
+            type: 'chat',
+            title: `${c.name}: ${c.last_message.sender_name}`,
+            content: c.last_message.content,
+            date: new Date(c.last_message.created_at)
+          }));
+
+        const pendingList = pendingData.results || pendingData || [];
+        const pendingNotifs = isAdmin && pendingList.length > 0 ? [{
+          id: `pending_count_${pendingList.length}_${pendingList[0]?.id || 0}`,
+          type: 'pending',
+          title: `${pendingList.length} Pending Member Approval${pendingList.length === 1 ? '' : 's'}`,
+          content: `Latest: ${pendingList[0]?.first_name || ''} ${pendingList[0]?.last_name || ''} is waiting in Holding Tank`,
+          date: new Date()
+        }] : [];
         
-        const allNotifs = [...anns, ...evts, ...srms].sort((a, b) => b.date - a.date);
-        const top5 = allNotifs.slice(0, 5);
-        setNotifications(top5);
+        const allNotifs = [...pendingNotifs, ...chatNotifs, ...anns, ...evts, ...srms].sort((a, b) => b.date - a.date);
+        const top8 = allNotifs.slice(0, 8);
+        setNotifications(top8);
         
+        const storageKey = `readNotifs_${user?.id || user?.username || 'default'}`;
         let readNotifs = [];
         try {
-          readNotifs = JSON.parse(localStorage.getItem('readNotifs') || '[]');
+          readNotifs = JSON.parse(localStorage.getItem(storageKey) || '[]');
         } catch (e) {
           readNotifs = [];
         }
         
-        const unread = top5.filter(n => !readNotifs.includes(n.id)).length;
+        const unread = top8.filter(n => !readNotifs.includes(n.id)).length;
         setUnreadCount(unread);
       } catch (err) {
         console.error("Failed to load notifications", err);
@@ -107,30 +130,34 @@ export default function Topbar({ onSearch }) {
     };
 
     fetchNotifications(); // Initial fetch
-    const interval = setInterval(fetchNotifications, 15000); // Poll every 15 seconds
+    const interval = setInterval(fetchNotifications, 6000); // Poll every 6 seconds for fast chat & announcement alerts
     return () => clearInterval(interval);
-  }, []);
+  }, [user?.id, user?.username, user?.role]);
 
   const handleMarkAllAsRead = () => {
     if (notifications.length > 0) {
+      const storageKey = `readNotifs_${user?.id || user?.username || 'default'}`;
       const allIds = notifications.map(n => n.id);
-      localStorage.setItem('readNotifs', JSON.stringify(allIds));
+      localStorage.setItem(storageKey, JSON.stringify(allIds));
       setUnreadCount(0);
     }
   };
 
   const handleNotificationClick = (notif) => {
     // Navigate based on type
-    if (notif.type === 'event') navigate('/dashboard/events');
+    if (notif.type === 'chat') navigate('/dashboard/chat');
+    else if (notif.type === 'pending') navigate('/dashboard/holding-tank');
+    else if (notif.type === 'event') navigate('/dashboard/events');
     else if (notif.type === 'sermon') navigate('/dashboard/sermons');
     else navigate('/dashboard/announcements');
     
     // Auto-mark this specific notification as read to clear the red dot
     try {
-      const readNotifs = JSON.parse(localStorage.getItem('readNotifs') || '[]');
+      const storageKey = `readNotifs_${user?.id || user?.username || 'default'}`;
+      const readNotifs = JSON.parse(localStorage.getItem(storageKey) || '[]');
       if (!readNotifs.includes(notif.id)) {
         readNotifs.push(notif.id);
-        localStorage.setItem('readNotifs', JSON.stringify(readNotifs));
+        localStorage.setItem(storageKey, JSON.stringify(readNotifs));
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch(e) {}
@@ -287,11 +314,23 @@ export default function Topbar({ onSearch }) {
                       onClick={() => handleNotificationClick(notif)}
                       className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3"
                     >
-                      <div className="mt-0.5 bg-indigo-50 p-1.5 rounded-full text-indigo-600 flex-shrink-0">
-                        <Megaphone className="w-4 h-4" />
+                      <div className={`mt-0.5 p-1.5 rounded-full flex-shrink-0 ${
+                        notif.type === 'chat'
+                          ? 'bg-sky-50 text-sky-600'
+                          : notif.type === 'pending'
+                          ? 'bg-amber-50 text-amber-600'
+                          : 'bg-indigo-50 text-indigo-600'
+                      }`}>
+                        {notif.type === 'chat' ? (
+                          <MessageSquare className="w-4 h-4" />
+                        ) : notif.type === 'pending' ? (
+                          <UserCheck className="w-4 h-4" />
+                        ) : (
+                          <Megaphone className="w-4 h-4" />
+                        )}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{notif.title}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-800 truncate">{notif.title}</p>
                         <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{notif.content}</p>
                       </div>
                     </div>

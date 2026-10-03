@@ -14,7 +14,7 @@ import requests as http_requests
 import re
 
 def geocode_address(address, city='Lusaka', country='Zambia'):
-    """Convert a text address to (latitude, longitude) using smart progressive Nominatim search."""
+    """Convert a text address to (latitude, longitude) using instant Zambia landmark lookup + fast Nominatim search."""
     if not address or not address.strip():
         return None, None
         
@@ -41,44 +41,98 @@ def geocode_address(address, city='Lusaka', country='Zambia'):
         
     # Detect city in address if present
     target_city = 'Kitwe' if 'kitwe' in clean.lower() else city
-    
-    candidates = []
-    candidates.append(fixed)
-    candidates.append(f"{fixed}, {target_city}, {country}")
-    
-    # Strip leading plot/house numbers e.g. 4148, Plot 12, Stand 44
+    lower_addr = clean.lower()
+
+    # Extract leading plot/house number if present so different houses on the same road don't overlap on the exact same pixel,
+    # while identical house numbers still cluster together at the exact same spot.
+    plot_match = re.search(r'(?i)^(?:plot|stand|house|no\.?|h/no\.?)?\s*(\d+)', clean)
+    plot_offset_lat = 0.0
+    plot_offset_lng = 0.0
+    if plot_match:
+        plot_num = int(plot_match.group(1))
+        # Deterministic ~30m-120m offset along the road based on house/plot number
+        plot_offset_lat = (((plot_num * 37) % 21) - 10) * 0.00012
+        plot_offset_lng = (((plot_num * 53) % 21) - 10) * 0.00012
+
+    # 1. Instant high-precision lookup for known Zambia streets & suburbs (< 1ms, works offline)
+    exact_suburbs_and_roads = [
+        ('teak', (-15.4064894, 28.3045635)),
+        ('rhodes', (-15.4090, 28.3018)),
+        ('unza', (-15.3924, 28.3285)),
+        ('university of zambia', (-15.3924, 28.3285)),
+        ('handsworth', (-15.3852, 28.3301)),
+        ('kalundu', (-15.3802, 28.3238)),
+        ('roma', (-15.3688, 28.3168)),
+        ('chudleigh', (-15.3672, 28.3375)),
+        ('munali', (-15.3765, 28.3422)),
+        ('kaunda square', (-15.3712, 28.3510)),
+        ('chelston', (-15.3694, 28.3752)),
+        ('avondale', (-15.3782, 28.3831)),
+        ('mutendere', (-15.3991, 28.3522)),
+        ('helen kaunda', (-15.4045, 28.3425)),
+        ('kabulonga', (-15.4178, 28.3492)),
+        ('ibex', (-15.4242, 28.3685)),
+        ('woodlands', (-15.4325, 28.3372)),
+        ('chilenje', (-15.4465, 28.3358)),
+        ('chalala', (-15.4620, 28.3450)),
+        ('longacres', (-15.4148, 28.3135)),
+        ('mass media', (-15.4022, 28.3185)),
+        ('olympia', (-15.3835, 28.3038)),
+        ('northmead', (-15.3992, 28.2935)),
+        ('kamwala', (-15.4310, 28.2912)),
+        ('makeni', (-15.4632, 28.2580)),
+        ('emmasdale', (-15.3915, 28.2730)),
+        ('matero', (-15.3762, 28.2610)),
+        ('kabanana', (-15.3495, 28.3082)),
+        ('chipata compound', (-15.3460, 28.2980)),
+        ('ndeke', (-12.8285, 28.2320)),
+        ('riverside', (-12.8110, 28.2345)),
+        ('parklands', (-12.8050, 28.2180)),
+    ]
+    for keyword, coords in exact_suburbs_and_roads:
+        if keyword in lower_addr:
+            return round(coords[0] + plot_offset_lat, 6), round(coords[1] + plot_offset_lng, 6)
+
+    # 2. Fast online Nominatim lookup for any other street/address (1 single fast query)
     no_plot = re.sub(r'(?i)^(plot|stand|house|no\.?|h/no\.?)?\s*\d+[\w/-]*\s*,?\s*', '', fixed)
-    if no_plot and no_plot != fixed:
-        candidates.append(no_plot)
-        candidates.append(f"{no_plot}, {target_city}, {country}")
-        
-    # Extract road name + area if present (e.g. 'Teak rd Rhodes Park')
-    road_match = re.search(r'(?i)(\w+\s*(?:rd|road|street|st|ave|avenue|way|lane|close|cres|drive|dr))\b', fixed)
-    if road_match:
-        road = road_match.group(1)
-        candidates.append(f"{road}, {target_city}, {country}")
-        candidates.append(f"{road}, {country}")
-        
-    for pat, rep in known_fixes.items():
-        if re.search(pat, clean):
-            candidates.append(f"{rep}, {target_city}, {country}")
-            candidates.append(f"{rep}, {country}")
-            
+    query_str = f"{no_plot or fixed}, {target_city}, {country}"
     headers = {'User-Agent': 'MAMS-Church-App/1.0 (church management system)'}
-    
-    for q in candidates:
-        try:
-            r = http_requests.get(
-                'https://nominatim.openstreetmap.org/search',
-                params={'q': q, 'format': 'json', 'limit': 1},
-                headers=headers,
-                timeout=5
-            )
-            data = r.json()
-            if data and len(data) > 0:
-                return float(data[0]['lat']), float(data[0]['lon'])
-        except Exception:
-            continue
+    try:
+        r = http_requests.get(
+            'https://nominatim.openstreetmap.org/search',
+            params={'q': query_str, 'format': 'json', 'limit': 1},
+            headers=headers,
+            timeout=(1.5, 2.0)
+        )
+        data = r.json()
+        if data and len(data) > 0:
+            return round(float(data[0]['lat']) + plot_offset_lat, 6), round(float(data[0]['lon']) + plot_offset_lng, 6)
+    except Exception:
+        pass
+
+    # 3. City-level fallback if offline or street not in OpenStreetMap
+    lower_with_city = f"{clean} {target_city}".lower()
+    city_fallbacks = [
+        ('kitwe', (-12.8024, 28.2132)),
+        ('ndola', (-12.9587, 28.6366)),
+        ('kabwe', (-14.4469, 28.4464)),
+        ('chingola', (-12.5289, 27.8838)),
+        ('mufulira', (-12.5498, 28.2407)),
+        ('livingstone', (-17.8419, 25.8544)),
+        ('luanshya', (-13.1367, 28.4166)),
+        ('kasama', (-10.2129, 31.1808)),
+        ('chipata', (-13.6333, 32.6500)),
+        ('solwezi', (-12.1688, 26.3894)),
+        ('mansa', (-11.1996, 28.8943)),
+        ('mongu', (-15.2484, 23.1274)),
+        ('choma', (-16.8089, 26.9875)),
+        ('mazabuka', (-15.8560, 27.7480)),
+        ('kafue', (-15.7691, 28.1814)),
+        ('lusaka', (-15.3875, 28.3228)),
+    ]
+    for keyword, coords in city_fallbacks:
+        if keyword in lower_with_city:
+            return coords
             
     return None, None
 
@@ -233,22 +287,27 @@ class MemberViewSet(BaseMultiTenantViewSet):
                 member.user = user
                 member.save()
 
-                # Send welcome email
+                # Send welcome email asynchronously in the background
                 try:
-                    from django.core.mail import send_mail
-                    from django.conf import settings
+                    from mams.email_service import send_email_async
                     org_name = member.organization.name if member.organization else "MAMS"
-                    email_user = getattr(settings, 'EMAIL_HOST_USER', '')
-                    sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
-                    send_mail(
-                        subject=f'Welcome to {org_name}',
-                        message=f'Hello {member.first_name},\n\nAn administrator has created an account for you at {org_name}.\n\nYour temporary password is: {password}\n\nPlease log in and change your password.\n\nThank you!',
-                        from_email=sender,
-                        recipient_list=[email],
-                        fail_silently=True,
+                    full_name = f"{member.first_name} {member.middle_name or ''} {member.last_name}".replace("  ", " ").strip()
+                    send_email_async(
+                        subject=f'Welcome to {org_name} - {full_name}',
+                        body=f'Hello {full_name} ({email}),\n\nAn administrator has created an account for you at {org_name}.\n\nYour temporary password is: {password}\n\nPlease log in and change your password.\n\nThank you!',
+                        recipient_email=email,
+                        org_name=org_name,
                     )
                 except Exception as e:
-                    print(f"Failed to send welcome email: {e}")
+                    print(f"Failed to queue welcome email: {e}")
+
+            if member.address and member.latitude is None:
+                org_city = member.organization.city.title() if (member.organization and member.organization.city) else 'Lusaka'
+                lat, lng = geocode_address(member.address, city=org_city)
+                if lat is not None:
+                    member.latitude = lat
+                    member.longitude = lng
+                    member.save(update_fields=['latitude', 'longitude'])
 
     def perform_update(self, serializer):
         from rest_framework.exceptions import PermissionDenied
@@ -277,11 +336,16 @@ class MemberViewSet(BaseMultiTenantViewSet):
         # Auto-geocode address only if latitude was not explicitly passed
         if 'latitude' in serializer.validated_data:
             if serializer.validated_data.get('latitude') is None:
-                Member.objects.filter(id=member.id).update(latitude=None, longitude=None)
-        elif 'address' in serializer.validated_data and member.address:
-            lat, lng = geocode_address(member.address)
+                member.latitude = None
+                member.longitude = None
+                member.save(update_fields=['latitude', 'longitude'])
+        elif member.address:
+            org_city = member.organization.city.title() if (member.organization and member.organization.city) else 'Lusaka'
+            lat, lng = geocode_address(member.address, city=org_city)
             if lat is not None:
-                Member.objects.filter(id=member.id).update(latitude=lat, longitude=lng)
+                member.latitude = lat
+                member.longitude = lng
+                member.save(update_fields=['latitude', 'longitude'])
 
     def get_permissions(self):
         from members.permissions import IsHierarchyAuthorized
@@ -363,12 +427,17 @@ def get_current_user(request):
         'email': profile.email,
         'gender': profile.gender,
         'address': profile.address,
+        'latitude': profile.latitude,
+        'longitude': profile.longitude,
         'status': profile.status,
         'profile_picture': request.build_absolute_uri(profile.profile_picture.url) if profile.profile_picture else None,
         'is_temporary_password': profile.is_temporary_password,
         'org_name': profile.organization.name if profile.organization else '',
+        'org_code': profile.organization.org_code if profile.organization else '',
         'org_type': profile.organization.org_type if profile.organization else 'CHURCH',
         'org_city': profile.organization.city if profile.organization else 'LUSAKA',
+        'section_name': profile.section.name if profile.section else 'Unassigned Section',
+        'zone_name': profile.zone.name if profile.zone else 'Unassigned Zone',
         'active_session_title': active_session_title,
         'checked_in_today': checked_in_today,
     })
@@ -376,7 +445,6 @@ def get_current_user(request):
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 @api_view(['POST', 'PATCH', 'PUT'])
-@permission_classes([IsAuthenticated])
 @permission_classes([IsAuthenticated])
 def update_my_profile(request):
     user = request.user
@@ -424,6 +492,9 @@ def update_my_profile(request):
 
     return Response({
         'message': 'Profile updated successfully',
+        'latitude': profile.latitude,
+        'longitude': profile.longitude,
+        'address': profile.address,
         'profile_picture': request.build_absolute_uri(profile.profile_picture.url) if profile.profile_picture else None
     })
 
@@ -582,19 +653,17 @@ def resend_otp(request):
         print(f"==================================================")
         
         try:
+            from mams.email_service import send_email_async
             org_name = member.organization.name if (member.organization and member.organization.name) else "MAMS"
-            email_user = getattr(settings, 'EMAIL_HOST_USER', '')
-            sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
-
-            send_mail(
-                subject=f'Your New {org_name} Verification Code',
-                message=f'Hello {member.first_name},\n\nYour new verification code for {org_name} is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
-                from_email=sender,
-                recipient_list=[email],
-                fail_silently=True,
+            full_name = f"{member.first_name} {member.middle_name or ''} {member.last_name}".replace("  ", " ").strip()
+            send_email_async(
+                subject=f'Your New {org_name} Verification Code - {full_name}',
+                body=f'Hello {full_name} ({email}),\n\nYour new verification code for {org_name} is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
+                recipient_email=email,
+                org_name=org_name,
             )
         except Exception as e:
-            print(f"Failed to send email: {e}")
+            print(f"Failed to queue email: {e}")
             
         return Response({'message': 'A new verification code has been sent to your email.'}, status=status.HTTP_200_OK)
         
@@ -622,19 +691,17 @@ def request_password_reset(request):
         print(f"==================================================")
         
         try:
+            from mams.email_service import send_email_async
             org_name = member.organization.name if (member.organization and member.organization.name) else "MAMS"
-            email_user = getattr(settings, 'EMAIL_HOST_USER', '')
-            sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
-
-            send_mail(
-                subject=f'Your {org_name} Password Reset Code',
-                message=f'Hello {member.first_name},\n\nYour password reset code for {org_name} is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
-                from_email=sender,
-                recipient_list=[email],
-                fail_silently=True,
+            full_name = f"{member.first_name} {member.middle_name or ''} {member.last_name}".replace("  ", " ").strip()
+            send_email_async(
+                subject=f'Your {org_name} Password Reset Code - {full_name}',
+                body=f'Hello {full_name} ({email}),\n\nYour password reset code for {org_name} is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
+                recipient_email=email,
+                org_name=org_name,
             )
         except Exception as e:
-            print(f"Failed to send email: {e}")
+            print(f"Failed to queue email: {e}")
             
         return Response({'message': 'A password reset code has been sent to your email.'}, status=status.HTTP_200_OK)
         

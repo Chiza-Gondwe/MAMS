@@ -37,22 +37,16 @@ class EmailLogViewSet(BaseMultiTenantViewSet):
         if not recipient_emails:
             return Response({'error': 'No members with email addresses found'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Send email (using BCC to protect privacy)
+        # Send bulk email asynchronously in background batches of 50 (using BCC to protect privacy)
         try:
-            from django.core.mail import EmailMessage
-            from django.conf import settings
+            from mams.email_service import send_bulk_email_async
             org_name = church.name if (church and church.name) else "MAMS"
-            email_user = getattr(settings, 'EMAIL_HOST_USER', '')
-            sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
-            to_addr = [email_user] if email_user else ['noreply@mams.local']
-            email_msg = EmailMessage(
-                subject,
-                body,
-                sender,
-                to_addr,
-                bcc=recipient_emails,
+            send_bulk_email_async(
+                subject=subject,
+                body=body,
+                recipient_emails=recipient_emails,
+                org_name=org_name,
             )
-            email_msg.send(fail_silently=False)
             
             # Log it in the database
             EmailLog.objects.create(
@@ -64,7 +58,7 @@ class EmailLogViewSet(BaseMultiTenantViewSet):
                 status='Sent'
             )
             
-            return Response({'message': f'Email successfully sent to {len(recipient_emails)} recipients'})
+            return Response({'message': f'Email queued for background delivery to {len(recipient_emails)} recipients'})
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

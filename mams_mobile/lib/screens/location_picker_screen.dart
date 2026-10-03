@@ -85,7 +85,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.mams.app',
+                userAgentPackageName: 'zm.org.mams.mobile',
               ),
               if (_picked != null)
                 MarkerLayer(
@@ -96,7 +96,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       height: 44,
                       child: const Icon(
                         Icons.location_pin,
-                        color: Color(0xFF4F46E5),
+                        color: Color(0xFF2563EB),
                         size: 44,
                       ),
                     ),
@@ -119,7 +119,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.touch_app, size: 18, color: Color(0xFF4F46E5)),
+                  const Icon(Icons.touch_app, size: 18, color: Color(0xFF2563EB)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -156,7 +156,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.location_on, size: 16, color: Color(0xFF4F46E5)),
+                            const Icon(Icons.location_on, size: 16, color: Color(0xFF2563EB)),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
@@ -194,7 +194,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4F46E5),
+                      backgroundColor: const Color(0xFF2563EB),
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: Colors.grey.shade300,
                       padding: const EdgeInsets.symmetric(vertical: 16),

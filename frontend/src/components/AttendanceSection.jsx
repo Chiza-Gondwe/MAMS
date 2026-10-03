@@ -27,6 +27,8 @@ export default function AttendanceSection() {
   const [scanLoading, setScanLoading] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [scanSuccess, setScanSuccess] = useState(null);
+  const [verifiedMember, setVerifiedMember] = useState(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
   const [selectedSessionForQR, setSelectedSessionForQR] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [filterSessionId, setFilterSessionId] = useState('');
@@ -269,28 +271,50 @@ export default function AttendanceSection() {
     }
   };
 
-  const handleScanAttendance = async () => {
-    if (!selectedSessionId || !scanMemberId) {
-      setError('Please select a session and enter a member ID');
+  const handleVerifyMember = async (rawId) => {
+    const target = (rawId ?? scanMemberId ?? '').toString().trim();
+    if (!target) {
+      setError('Please enter or scan a Member ID first');
       return;
     }
-    
+    setVerifyLoading(true);
+    setError(null);
+    setScanSuccess(null);
+    try {
+      const res = await api.verifyMemberForAttendance(target);
+      if (res && res.member) {
+        setVerifiedMember(res.member);
+        setScanMemberId(String(res.member.id));
+      }
+    } catch (err) {
+      setVerifiedMember(null);
+      setError(err.message || 'Member not found');
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
+
+  const handleScanAttendance = async () => {
+    const cleanId = String(scanMemberId || '').replace('MAMS-MEMBER:', '').trim();
+    if (!cleanId) {
+      setError('Please enter or scan a Member ID');
+      return;
+    }
+
     setScanLoading(true);
     setError(null);
     setScanSuccess(null);
     try {
-      const result = await api.scanAttendance(selectedSessionId, scanMemberId);
+      const sessionTarget = selectedSessionId || 'today';
+      const result = await api.scanAttendance(sessionTarget, cleanId);
+      if (result.member) {
+        setVerifiedMember(result.member);
+      }
       setScanSuccess({
         message: result.message || 'Attendance recorded successfully',
-        firstVisit: result.first_visit || false
+        firstVisit: result.is_first_visit || result.first_visit || false
       });
-      setScanMemberId('');
       await loadData();
-      // Auto-close after 2 seconds
-      setTimeout(() => {
-        setShowScanModal(false);
-        setScanSuccess(null);
-      }, 2000);
     } catch (err) {
       console.error('Scan attendance failed:', err);
       setError(err.message || 'Failed to record attendance');
@@ -631,14 +655,32 @@ export default function AttendanceSection() {
                   'Service';
                 const sessionDate = rec.session_date || 
                   (sessions.find(s => String(s.id) === String(rec.session))?.date);
+                const photoUrl = rec.member_photo ? rec.member_photo.replace(/^https?:\/\/[^/]+/, '') : null;
+                const displayName = rec.member_name || `Member #${rec.member}`;
 
                 return (
                   <tr key={rec.id} className="hover:bg-slate-50/80 transition-colors even:bg-slate-50/40">
                     <td className="py-2.5 px-3 text-xs font-bold text-sky-700 w-12">
                       #{index + 1}
                     </td>
-                    <td className="py-2.5 px-3 text-sm font-semibold text-slate-800">
-                      {rec.member_name || `Member #${rec.member_id}`}
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center gap-2.5">
+                        {photoUrl ? (
+                          <img src={photoUrl} alt={displayName} className="w-8 h-8 rounded-full object-cover border border-slate-200 shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-700 font-bold text-xs flex items-center justify-center shrink-0">
+                            {displayName.slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm font-semibold text-slate-800 leading-tight">{displayName}</p>
+                          {(rec.member_section || rec.member_zone) && (
+                            <p className="text-[11px] text-slate-400">
+                              {rec.member_section || 'Unassigned Section'} • {rec.member_zone || 'Unassigned Zone'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="py-2.5 px-3 text-xs text-slate-600">
                       <span className="font-medium text-slate-800">{sessionName}</span>
@@ -792,66 +834,163 @@ export default function AttendanceSection() {
         </div>
       )}
 
-      {/* Scan Attendance Modal */}
+      {/* Scan & Visual Identity Verification Modal */}
       {showScanModal && (
-        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50" onClick={() => setShowScanModal(false)}>
-          <div className="bg-white rounded-lg p-5 w-96 border border-slate-200 shadow-sm" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setShowScanModal(false);
+            setVerifiedMember(null);
+            setScanSuccess(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-medium text-slate-800">Record attendance</h3>
-              <button onClick={() => setShowScanModal(false)} className="text-slate-400 hover:text-slate-600">
+              <div>
+                <h3 className="font-bold text-slate-800 text-base">Visual Identity & Attendance Check-In</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Scan or enter Member ID to verify photo, name & section</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowScanModal(false);
+                  setVerifiedMember(null);
+                  setScanSuccess(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            
-            {scanSuccess && (
-              <div className="mb-4 p-2 bg-green-50 border border-green-200 rounded-md text-center">
-                <CheckCircle className="w-4 h-4 text-green-600 mx-auto mb-1" />
-                <p className="text-xs text-green-700">{scanSuccess.message}</p>
-                {scanSuccess.firstVisit && (
-                  <p className="text-xs text-green-600 mt-1">✨ First time attending!</p>
-                )}
-              </div>
-            )}
-            
-            <div className="space-y-3">
+
+            <div className="space-y-3.5">
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Select Session</label>
-                <select 
-                  value={selectedSessionId} 
-                  onChange={e => setSelectedSessionId(e.target.value)} 
-                  className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Service / Session</label>
+                <select
+                  value={selectedSessionId}
+                  onChange={e => setSelectedSessionId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
                 >
-                  <option value="">-- Select a session --</option>
+                  <option value="today">Today&apos;s Active Service (Auto)</option>
                   {sessions.map(s => (
-                    <option key={s.id} value={s.id}>{s.title} ({s.session_type})</option>
+                    <option key={s.id} value={s.id}>{s.title} ({s.date})</option>
                   ))}
                 </select>
               </div>
+
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Member ID</label>
-                <input 
-                  type="number" 
-                  value={scanMemberId} 
-                  onChange={e => setScanMemberId(e.target.value)} 
-                  className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
-                  placeholder="Enter member ID"
-                />
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Member QR Code or Member ID</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={scanMemberId}
+                    onChange={e => {
+                      setScanMemberId(e.target.value);
+                      setScanSuccess(null);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleVerifyMember(e.target.value);
+                      }
+                    }}
+                    className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
+                    placeholder="e.g. 12 or MAMS-MEMBER:12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleVerifyMember(scanMemberId)}
+                    disabled={verifyLoading}
+                    className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors"
+                  >
+                    {verifyLoading ? 'Verifying...' : 'Verify Photo'}
+                  </button>
+                </div>
               </div>
+
+              {/* Visual Identity Verification Card */}
+              {verifiedMember && (
+                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 text-center">
+                  <span className={`inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full mb-3 ${
+                    scanSuccess
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {scanSuccess ? 'Identity Verified • Checked In ✓' : 'Visual Identity Verification'}
+                  </span>
+
+                  <div className="w-24 h-24 mx-auto rounded-full p-1 border-2 border-blue-500 mb-2.5 overflow-hidden bg-white flex items-center justify-center">
+                    {verifiedMember.profile_picture_relative || verifiedMember.profile_picture ? (
+                      <img
+                        src={verifiedMember.profile_picture_relative || verifiedMember.profile_picture.replace(/^https?:\/\/[^/]+/, '')}
+                        alt={verifiedMember.full_name}
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-2xl font-extrabold text-blue-700">
+                        {(verifiedMember.full_name || 'M').slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+
+                  <h4 className="font-extrabold text-slate-900 text-base">{verifiedMember.full_name}</h4>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Member #{verifiedMember.id} • {verifiedMember.role} • {verifiedMember.status}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 mt-3 p-2.5 bg-white rounded-lg border border-slate-200 text-left">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Section</p>
+                      <p className="text-xs font-bold text-slate-800 truncate">{verifiedMember.section_name}</p>
+                    </div>
+                    <div className="border-l border-slate-200 pl-2">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Zone</p>
+                      <p className="text-xs font-bold text-slate-800 truncate">{verifiedMember.zone_name}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {scanSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                  <CheckCircle className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                  <p className="text-xs font-semibold text-emerald-800">{scanSuccess.message}</p>
+                  {scanSuccess.firstVisit && (
+                    <p className="text-xs text-emerald-600 mt-1">✨ First time attending!</p>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-2 pt-2">
-                <button onClick={handleScanAttendance} className="btn-primary flex-1 text-sm py-2" disabled={scanLoading}>
+                <button
+                  onClick={handleScanAttendance}
+                  className="btn-primary flex-1 text-sm py-2.5"
+                  disabled={scanLoading}
+                >
                   {scanLoading ? (
                     <span className="flex items-center justify-center gap-2">
-                      <Loader className="w-3.5 h-3.5 animate-spin" />
+                      <Loader className="w-4 h-4 animate-spin" />
                       Recording...
                     </span>
                   ) : (
                     <span className="flex items-center justify-center gap-2">
-                      <QrCode className="w-3.5 h-3.5" />
-                      Record attendance
+                      <QrCode className="w-4 h-4" />
+                      {verifiedMember ? 'Confirm Identity & Check In' : 'Verify & Record Attendance'}
                     </span>
                   )}
                 </button>
-                <button onClick={() => setShowScanModal(false)} className="btn-secondary flex-1 text-sm py-2">Cancel</button>
+                <button
+                  onClick={() => {
+                    setShowScanModal(false);
+                    setVerifiedMember(null);
+                    setScanSuccess(null);
+                  }}
+                  className="btn-secondary px-4 text-sm py-2.5"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

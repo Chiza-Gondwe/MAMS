@@ -1,4 +1,4 @@
-import { Mail, CheckCircle2, X } from 'lucide-react';
+import { Mail, CheckCircle2, X, Sparkles } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 
@@ -8,6 +8,9 @@ export default function Communications() {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiTone, setAiTone] = useState('warm');
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   const fetchEmails = () => {
     api.getEmails().then(data => {
@@ -19,6 +22,29 @@ export default function Communications() {
     fetchEmails();
   }, []);
 
+  const handleGenerateWithAI = async () => {
+    const topicText = aiPrompt.trim() || subject.trim() || body.trim();
+    if (!topicText) {
+      alert('Enter a few words or topic first (e.g. "Monthly newsletter & Sunday service reminder")');
+      return;
+    }
+    setAiGenerating(true);
+    try {
+      const res = await api.draftMessageWithAI({
+        prompt: topicText,
+        tone: aiTone,
+        audience: 'all',
+        message_type: 'email',
+      });
+      if (res.subject || res.title) setSubject(res.subject || res.title);
+      if (res.body || res.content) setBody(res.body || res.content);
+    } catch (err) {
+      alert(err.message || 'Failed to generate with AI');
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
   const handleSend = async (e) => {
     e.preventDefault();
     setSending(true);
@@ -27,6 +53,7 @@ export default function Communications() {
       setIsModalOpen(false);
       setSubject('');
       setBody('');
+      setAiPrompt('');
       fetchEmails();
     } catch (err) {
       alert(err.message || 'Failed to send email');
@@ -92,6 +119,43 @@ export default function Communications() {
             
             <form onSubmit={handleSend} className="p-6 flex-1 overflow-y-auto">
               <div className="space-y-4">
+                {/* AI Smart Email Drafter */}
+                <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                      AI Smart Email Drafter
+                    </span>
+                    <select
+                      value={aiTone}
+                      onChange={e => setAiTone(e.target.value)}
+                      className="text-xs px-2 py-1 rounded border border-blue-200 bg-white text-slate-700 font-medium focus:outline-none"
+                    >
+                      <option value="warm">Warm & Welcoming</option>
+                      <option value="formal">Official & Formal</option>
+                      <option value="urgent">Urgent Notice</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={aiPrompt}
+                      onChange={e => setAiPrompt(e.target.value)}
+                      placeholder="Brief notes, e.g. Sunday service schedule & stewardship update..."
+                      className="flex-1 px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-xs focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGenerateWithAI}
+                      disabled={aiGenerating}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-60"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {aiGenerating ? 'Drafting...' : 'Generate with AI'}
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">To</label>
                   <input type="text" disabled value="All Members (BCC)" className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm bg-slate-50 text-slate-500" />

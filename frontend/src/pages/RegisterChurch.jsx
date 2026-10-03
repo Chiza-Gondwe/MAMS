@@ -47,6 +47,47 @@ export default function RegisterChurch() {
   };
 
   if (successData) {
+    const joinQrTargetUrl = `${window.location.origin}/register?org_code=${encodeURIComponent(successData.org_code)}`;
+    const joinQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(joinQrTargetUrl)}`;
+    const orgName = successData.organization?.name || 'Organization';
+    const isPTA = successData.organization?.org_type === 'PTA';
+
+    const handlePrintJoinPoster = () => {
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>${orgName} - Join QR Poster</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px; margin: 0; background: #fff; }
+              .poster { max-width: 650px; margin: 0 auto; border: 4px solid #0284c7; border-radius: 24px; padding: 40px 30px; box-sizing: border-box; }
+              h1 { font-size: 30px; color: #0f172a; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1px; }
+              h2 { font-size: 20px; color: #0284c7; margin: 0 0 24px 0; font-weight: 600; }
+              .qr-wrapper { margin: 15px auto; padding: 16px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 20px; display: inline-block; }
+              .qr-wrapper img { width: 280px; height: 280px; display: block; }
+              .code-box { font-size: 26px; font-weight: 800; letter-spacing: 3px; color: #0369a1; background: #e0f2fe; padding: 10px 24px; border-radius: 12px; display: inline-block; margin-top: 16px; }
+              .instructions { font-size: 17px; color: #334155; margin: 20px 0 8px 0; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="poster">
+              <h1>${orgName}</h1>
+              <h2>Scan to Join Our ${isPTA ? 'School / PTA' : 'Congregation'} on MAMS</h2>
+              <div class="qr-wrapper">
+                <img src="${joinQrImageUrl}" alt="Join QR Code" />
+              </div>
+              <br />
+              <div class="code-box">${successData.org_code}</div>
+              <p class="instructions">Scan this QR code in the MAMS Mobile App (or with your phone camera) to register!</p>
+            </div>
+            <script>window.onload = function() { window.print(); };</script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    };
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-sky-950 to-indigo-950 py-12 relative overflow-hidden">
         {/* Animated Background Shapes */}
@@ -60,19 +101,29 @@ export default function RegisterChurch() {
             <CheckCircle2 className="w-8 h-8 text-green-600" />
           </div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Organization Registered!</h2>
-          <p className="text-slate-600 mb-6">You are now the admin for <strong>{successData.organization?.name}</strong> ({successData.organization?.city}).</p>
+          <p className="text-slate-600 mb-5">You are now the admin for <strong>{successData.organization?.name}</strong> ({successData.organization?.city}).</p>
           
-          <div className="bg-sky-50 border border-sky-100 p-4 rounded-xl mb-6">
-            <h3 className="text-sky-800 font-medium mb-1 text-sm">Your Organization Code</h3>
-            <p className="text-xs text-sky-600 mb-3">Share this code with your members so they can join your organization.</p>
-            <div className="bg-white px-4 py-3 border border-sky-200 rounded-lg text-lg font-bold text-sky-700 tracking-wider">
+          <div className="bg-sky-50 border border-sky-100 p-4 rounded-xl mb-5">
+            <h3 className="text-sky-800 font-medium mb-1 text-sm">Organization Join Code & QR</h3>
+            <p className="text-xs text-sky-600 mb-3">Members can scan this QR code or enter the code below to join your organization.</p>
+            <div className="bg-white p-3 rounded-xl border border-sky-200 inline-block mb-3 shadow-sm">
+              <img src={joinQrImageUrl} alt="Organization Join QR Code" className="w-44 h-44 mx-auto" />
+            </div>
+            <div className="bg-white px-4 py-2.5 border border-sky-200 rounded-lg text-lg font-bold text-sky-700 tracking-wider">
               {successData.org_code}
             </div>
+            <button
+              type="button"
+              onClick={handlePrintJoinPoster}
+              className="mt-3 text-xs font-semibold text-sky-700 hover:text-sky-800 underline"
+            >
+              Print / Save Join QR Poster
+            </button>
           </div>
           
           <button 
             onClick={() => navigate('/login')} 
-            className="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-semibold py-3 rounded-xl transition-all duration-300 shadow-lg shadow-sky-600/30 hover:shadow-sky-500/40 hover:-translate-y-0.5 mt-4"
+            className="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-semibold py-3 rounded-xl transition-all duration-300 shadow-lg shadow-sky-600/30 hover:shadow-sky-500/40 hover:-translate-y-0.5 mt-2"
           >
             Go to Login
           </button>

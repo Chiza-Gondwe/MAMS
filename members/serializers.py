@@ -134,21 +134,21 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
             print(f"==================================================")
             print(f"MAMS VERIFICATION CODE FOR {email}: {otp}")
             print(f"==================================================")
-            
-            # Send Email
-            try:
-                org_name = organization.name if organization else "MAMS"
-                email_user = getattr(settings, 'EMAIL_HOST_USER', '')
-                sender = f"{org_name} <{email_user}>" if email_user else getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@mams.local')
 
-                send_mail(
-                    subject=f'Verify Your {org_name} Account',
-                    message=f'Hello {member.first_name},\n\nYour verification code for {org_name} is: {otp}\n\nThis code will expire in 15 minutes.\n\nThank you!',
-                    from_email=sender,
-                    recipient_list=[email],
-                    fail_silently=True,
-                )
-            except Exception as e:
-                print(f"Failed to send email: {e}")
-                
+        # Dispatch email asynchronously AFTER DB transaction commits so registration never hangs
+        from mams.email_service import send_email_async
+        org_name = organization.name if organization else "MAMS"
+        full_name = " ".join(p for p in [member.first_name, member.middle_name, member.last_name] if p).strip() or member.first_name
+        send_email_async(
+            subject=f"Verify Your {org_name} Account - {full_name}",
+            body=(
+                f"Hello {full_name} ({email}),\n\n"
+                f"Your verification code for {org_name} is: {otp}\n\n"
+                f"This code will expire in 15 minutes.\n\n"
+                f"Thank you!"
+            ),
+            recipient_email=email,
+            org_name=org_name,
+        )
+
         return member

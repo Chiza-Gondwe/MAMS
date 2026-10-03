@@ -179,6 +179,7 @@ searchUserByEmail: async (email) => {
     method: 'POST',
     body: JSON.stringify(memberId ? { member_id: parseInt(memberId) } : {})
   }),
+  verifyMemberForAttendance: (memberId) => request(`/attendance/sessions/verify_member/${memberId ? `?member_id=${encodeURIComponent(memberId)}` : ''}`),
   getAttendanceRecords: (page = 1, sessionId = '') => request(`/attendance/records/?page=${page}${sessionId ? `&session=${sessionId}` : ''}`),
   
   // Announcements
@@ -199,9 +200,6 @@ searchUserByEmail: async (email) => {
   updateAnnouncement: (id, data) => request(`/announcements/${id}/`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAnnouncement: (id) => request(`/announcements/${id}/`, { method: 'DELETE' }),
 
-  // Finances
-  getDonations: () => request('/finances/donations/'),
-
   // Events
   getEvents: () => request('/events/'),
   createEvent: (data) => request('/events/', { method: 'POST', body: JSON.stringify(data) }),
@@ -218,6 +216,7 @@ searchUserByEmail: async (email) => {
   getSettings: () => request('/settings/1/'),
   updateSettings: (data) => request('/settings/1/', { method: 'PATCH', body: JSON.stringify(data) }),
   getAnalytics: () => request('/analytics/'),
+  draftMessageWithAI: (data) => request('/ai/draft-message/', { method: 'POST', body: JSON.stringify(data) }),
 
   // School / PTA
   getClasses: () => request('/school/classes/'),
@@ -257,10 +256,6 @@ searchUserByEmail: async (email) => {
     method: 'POST',
     body: JSON.stringify({ email, otp_code, password })
   }),
-  changePassword: (password) => request('/members/change_password/', {
-    method: 'POST',
-    body: JSON.stringify({ password })
-  }),
 
   // Group Chat
   getChatChannels: () => request('/chat/channels/'),
@@ -269,10 +264,22 @@ searchUserByEmail: async (email) => {
     if (sinceId) url += `?since_id=${sinceId}`;
     return request(url);
   },
-  sendChatMessage: (channelId, content) => request(`/chat/channels/${channelId}/messages/`, {
-    method: 'POST',
-    body: JSON.stringify({ content })
-  }),
+  sendChatMessage: (channelId, content, attachmentFile = null, attachmentType = null) => {
+    if (attachmentFile) {
+      const formData = new FormData();
+      if (content) formData.append('content', content);
+      formData.append('attachment', attachmentFile);
+      if (attachmentType) formData.append('attachment_type', attachmentType);
+      return request(`/chat/channels/${channelId}/messages/`, {
+        method: 'POST',
+        body: formData
+      });
+    }
+    return request(`/chat/channels/${channelId}/messages/`, {
+      method: 'POST',
+      body: JSON.stringify({ content })
+    });
+  },
   deleteChatMessage: (messageId) => request(`/chat/messages/${messageId}/`, {
     method: 'DELETE'
   })

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import '../theme/theme_controller.dart';
 import 'home_screen.dart';
 import 'register_screen.dart';
 
@@ -22,12 +24,38 @@ class _LoginScreenState extends State<LoginScreen> {
   String _currentServerUrl = ApiService.defaultBaseUrl;
   bool _canCheckBiometrics = false;
   bool _hasVaultCredentials = false;
+  String _savedFullName = '';
+  String _savedOrgName = '';
+  String? _savedProfilePic;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentServerUrl();
     _checkBiometrics();
+    _loadSavedMemberProfile();
+  }
+
+  Future<void> _loadSavedMemberProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final first = (prefs.getString('first_name') ?? '').trim();
+    final last = (prefs.getString('last_name') ?? '').trim();
+    final full = '$first $last'.trim();
+    final org = (prefs.getString('org_name') ?? '').trim();
+    final pic = prefs.getString('profile_picture');
+    final creds = await ApiService.getVaultCredentials();
+    if (mounted) {
+      setState(() {
+        _savedFullName = full;
+        _savedOrgName = org;
+        _savedProfilePic = pic;
+        if (_usernameController.text.isEmpty &&
+            creds != null &&
+            (creds['username'] ?? '').isNotEmpty) {
+          _usernameController.text = creds['username']!;
+        }
+      });
+    }
   }
 
   Future<void> _checkBiometrics() async {
@@ -238,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (ctx.mounted) Navigator.pop(ctx);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4F46E5),
+                backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
               ),
               child: const Text('Save'),
@@ -251,158 +279,206 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MamsColors.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF070D1E),
+      backgroundColor: colors.background,
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: colors.background,
         elevation: 0,
+        scrolledUnderElevation: 0,
         actions: [
           IconButton(
+            tooltip: 'Toggle Light / Dark Mode',
+            icon: Icon(ThemeController.modeIcon, color: colors.textSecondary, size: 21),
+            onPressed: () {
+              final next = colors.isDark ? ThemeMode.light : ThemeMode.dark;
+              ThemeController.setThemeMode(next);
+            },
+          ),
+          IconButton(
             tooltip: 'Server Settings',
-            icon: const Icon(Icons.settings, color: Colors.white70),
+            icon: Icon(Icons.settings_outlined, color: colors.textSecondary, size: 21),
             onPressed: _showServerSettingsDialog,
           ),
+          const SizedBox(width: 6),
         ],
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF070D1E), // Deep Midnight
-              Color(0xFF0F1B38), // Rich Navy
-              Color(0xFF1E1B4B), // Indigo Sapphire
-              Color(0xFF0B132B), // Slate Midnight
-            ],
-            stops: [0.0, 0.35, 0.75, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              // Subtle ambient glow behind logo
-              Positioned(
-                top: 10,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    width: 220,
-                    height: 220,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF6366F1).withValues(alpha: 0.16),
-                          blurRadius: 100,
-                          spreadRadius: 25,
-                        ),
-                        BoxShadow(
-                          color: const Color(0xFF0284C7).withValues(alpha: 0.12),
-                          blurRadius: 80,
-                          spreadRadius: 15,
-                        ),
-                      ],
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: colors.cardBorder, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: colors.isDark ? 0.35 : 0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(19),
+                    child: Image.asset(
+                      'assets/icon/app_icon.png',
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
-              ),
-              Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 92,
-                        height: 92,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF6366F1).withValues(alpha: 0.35),
-                              blurRadius: 22,
-                              offset: const Offset(0, 8),
-                            ),
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.45),
-                              blurRadius: 14,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(24),
-                          child: Image.asset(
-                            'assets/icon/app_icon.png',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'MAMS',
-                        style: TextStyle(
-                          fontSize: 34,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Membership Affiliation & Management System',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: 0.4,
-                          color: Color(0xFF94A3B8),
-                        ),
-                      ),
-                      const SizedBox(height: 36),
+                const SizedBox(height: 16),
+                Text(
+                  'MAMS',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Membership Affiliation & Management System',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 28),
 
-                      // Login Form Card
-                      Container(
-                        padding: const EdgeInsets.all(24.0),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF131F37).withValues(alpha: 0.90),
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.45),
-                              blurRadius: 25,
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
-                        ),
-                        child: Column(
+                // Login Form Card
+                Container(
+                  padding: const EdgeInsets.all(24.0),
+                  decoration: BoxDecoration(
+                    color: colors.cardSurface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: colors.cardBorder, width: 1),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: colors.isDark ? 0.25 : 0.04),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (_savedFullName.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 16),
+                          decoration: BoxDecoration(
+                            color: colors.subtleSurface,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: colors.cardBorder),
+                          ),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 24,
+                                backgroundColor: colors.iconBadgeBg,
+                                backgroundImage: (_savedProfilePic != null &&
+                                        _savedProfilePic!.isNotEmpty)
+                                    ? NetworkImage(_savedProfilePic!)
+                                    : null,
+                                child: (_savedProfilePic == null ||
+                                        _savedProfilePic!.isEmpty)
+                                    ? Text(
+                                        _savedFullName[0].toUpperCase(),
+                                        style: TextStyle(
+                                          color: colors.accentBlue,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 18,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Welcome back,',
+                                      style: TextStyle(
+                                        color: colors.textSecondary,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      _savedFullName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: colors.textPrimary,
+                                        fontSize: 15.5,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    if (_savedOrgName.isNotEmpty)
+                                      Text(
+                                        _savedOrgName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: colors.accentBlue,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.verified_user_rounded,
+                                color: colors.accentBlue,
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        Text(
+                          'Sign in to your account',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                      ],
                       if (_errorMessage != null)
                         Container(
                           padding: const EdgeInsets.all(12),
                           margin: const EdgeInsets.only(bottom: 16),
                           decoration: BoxDecoration(
-                            color: Colors.red.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.shade400),
+                            color: colors.dangerRed.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: colors.dangerRed.withValues(alpha: 0.4)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline,
-                                  color: Colors.redAccent, size: 20),
+                              Icon(Icons.error_outline, color: colors.dangerRed, size: 20),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _errorMessage!,
-                                  style: const TextStyle(
-                                    color: Colors.redAccent,
+                                  style: TextStyle(
+                                    color: colors.dangerRed,
                                     fontSize: 13,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
@@ -411,37 +487,42 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       TextField(
                         controller: _usernameController,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: colors.textPrimary, fontSize: 15),
                         decoration: InputDecoration(
                           labelText: 'Email or Username',
-                          labelStyle: const TextStyle(color: Colors.white60),
-                          prefixIcon: const Icon(Icons.person_outline,
-                              color: Colors.white60),
+                          labelStyle: TextStyle(color: colors.textSecondary, fontSize: 14),
+                          prefixIcon: Icon(Icons.person_outline, color: colors.textSecondary, size: 20),
                           filled: true,
-                          fillColor: const Color(0xFF0A1628),
+                          fillColor: colors.subtleSurface,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: Colors.white12),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.cardBorder),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: Colors.white12),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.cardBorder),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.accentBlue, width: 1.5),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       TextField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
-                        style: const TextStyle(color: Colors.white),
+                        style: TextStyle(color: colors.textPrimary, fontSize: 15),
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          labelStyle: const TextStyle(color: Colors.white60),
-                          prefixIcon: const Icon(Icons.lock_outline, color: Colors.white60),
+                          labelStyle: TextStyle(color: colors.textSecondary, fontSize: 14),
+                          prefixIcon: Icon(Icons.lock_outline, color: colors.textSecondary, size: 20),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                              color: Colors.white60,
+                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: colors.textSecondary,
+                              size: 20,
                             ),
                             onPressed: () {
                               setState(() {
@@ -450,34 +531,40 @@ class _LoginScreenState extends State<LoginScreen> {
                             },
                           ),
                           filled: true,
-                          fillColor: const Color(0xFF0A1628),
+                          fillColor: colors.subtleSurface,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: Colors.white12),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.cardBorder),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: Colors.white12),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.cardBorder),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: colors.accentBlue, width: 1.5),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                       SizedBox(
                         width: double.infinity,
                         height: 48,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _login,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50),
+                            backgroundColor: colors.primaryNavy,
                             foregroundColor: Colors.white,
+                            elevation: 0,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                           child: _isLoading
                               ? const SizedBox(
-                                  height: 24,
-                                  width: 24,
+                                  height: 20,
+                                  width: 20,
                                   child: CircularProgressIndicator(
                                     color: Colors.white,
                                     strokeWidth: 2,
@@ -486,16 +573,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               : const Text(
                                   'Sign In',
                                   style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       SizedBox(
                         width: double.infinity,
-                        height: 48,
+                        height: 46,
                         child: OutlinedButton.icon(
                           onPressed: () {
                             if (!_canCheckBiometrics) {
@@ -514,13 +601,16 @@ class _LoginScreenState extends State<LoginScreen> {
                               _authenticateBiometric();
                             }
                           },
-                          icon: const Icon(Icons.fingerprint, color: Colors.white),
-                          label: const Text('Login with Biometrics'),
+                          icon: Icon(Icons.fingerprint, color: colors.textPrimary, size: 20),
+                          label: Text(
+                            'Login with Biometrics',
+                            style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
+                          ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: const BorderSide(color: Colors.white30),
+                            backgroundColor: colors.subtleSurface,
+                            side: BorderSide(color: colors.cardBorder),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                         ),
@@ -533,17 +623,27 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: () {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen()));
                   },
-                  child: const Text(
-                    "Don't have an account? Sign Up",
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  child: RichText(
+                    text: TextSpan(
+                      style: TextStyle(color: colors.textSecondary, fontSize: 14),
+                      children: [
+                        const TextSpan(text: "Don't have an account? "),
+                        TextSpan(
+                          text: 'Join Organization',
+                          style: TextStyle(
+                            color: colors.accentBlue,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 TextButton.icon(
-                  icon: const Icon(Icons.wifi_tethering,
-                      size: 14, color: Colors.white38),
+                  icon: Icon(Icons.dns_outlined, size: 14, color: colors.textMuted),
                   label: Text(
                     'Server: $_currentServerUrl',
-                    style: const TextStyle(color: Colors.white38, fontSize: 12),
+                    style: TextStyle(color: colors.textMuted, fontSize: 12),
                   ),
                   onPressed: _showServerSettingsDialog,
                 ),
@@ -551,10 +651,8 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
-          ],
-        ),
       ),
-    ),
-  );
+    );
+  }
 }
-}
+

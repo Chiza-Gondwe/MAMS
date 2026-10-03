@@ -184,11 +184,18 @@ class MobileDashboardAPIView(APIView):
             else:
                 active_session_title = today_session.title
 
+        from .ai_engine import compute_ai_insights
+        ai_insights = compute_ai_insights(org, request)
+
         return Response({
             'total_members': total_members,
             'pending_members': pending_members,
             'monthly_contributions': contributions,
             'active_session_title': active_session_title,
+            'org_code': org.org_code if org else '',
+            'org_name': org.name if org else '',
+            'org_type': org.org_type if org else 'CHURCH',
+            'ai_insights': ai_insights,
         })
 
 class AnalyticsAPIView(APIView):
@@ -242,9 +249,13 @@ class AnalyticsAPIView(APIView):
                     'month': f['month'].strftime('%b %Y'),
                     'amount': float(f['total'])
                 })
+
+        from .ai_engine import compute_ai_insights
+        ai_insights = compute_ai_insights(church, request)
             
         return Response({
             'demographics': demographics,
             'attendance_trend': formatted_attendance,
-            'financial_trend': formatted_finances
+            'financial_trend': formatted_finances,
+            'ai_insights': ai_insights,
         })

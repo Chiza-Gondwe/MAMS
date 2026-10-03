@@ -115,25 +115,26 @@ const MemberMap = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchMembers();
-  }, []);
-
-  const fetchMembers = async () => {
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('http://127.0.0.1:8000/api/members/?page_size=1000', {
-        headers: { 'Authorization': `Bearer ${token}` }
+    let isMounted = true;
+    api.getMembers(1, '')
+      .then((responseData) => {
+        if (!isMounted) return;
+        const data = responseData.results || responseData || [];
+        const locatedMembers = Array.isArray(data)
+          ? data.filter(m => m.latitude !== null && m.latitude !== undefined && m.longitude !== null && m.longitude !== undefined)
+          : [];
+        setMembers(locatedMembers);
+      })
+      .catch((error) => {
+        console.error("Error fetching members for map:", error);
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
       });
-      const responseData = await response.json();
-      const data = responseData.results || responseData || [];
-      const locatedMembers = Array.isArray(data) ? data.filter(m => m.latitude && m.longitude) : [];
-      setMembers(locatedMembers);
-    } catch (error) {
-      console.error("Error fetching members for map:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Group members at same location (rounded to 4 decimal places ≈ 11m)
   const clusters = useMemo(() => {

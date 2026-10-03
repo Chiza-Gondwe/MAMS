@@ -30,13 +30,24 @@ class ChatChannel(models.Model):
         return f"{self.name} ({self.get_channel_type_display()})"
 
 class ChatMessage(models.Model):
+    ATTACHMENT_TYPE_CHOICES = [
+        ('image', 'Image'),
+        ('video', 'Video'),
+        ('audio', 'Voice Note / Audio'),
+        ('file', 'File'),
+    ]
+
     channel = models.ForeignKey(ChatChannel, on_delete=models.CASCADE, related_name='messages')
     sender = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='chat_messages')
-    content = models.TextField()
+    content = models.TextField(blank=True, default='')
+    attachment = models.FileField(upload_to='chat_attachments/%Y/%m/', null=True, blank=True)
+    attachment_type = models.CharField(max_length=20, choices=ATTACHMENT_TYPE_CHOICES, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['created_at']
 
     def __str__(self):
-        return f"{self.sender.first_name}: {self.content[:30]}"
+        preview = self.content[:30] if self.content else f"[{self.attachment_type or 'attachment'}]"
+        return f"{self.sender.first_name}: {preview}"
+

@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { Eye, EyeOff, Search, CheckCircle2 } from 'lucide-react';
 
 export default function Register() {
-  const [orgCode, setOrgCode] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialUrlCode = (searchParams.get('org_code') || searchParams.get('code') || '').trim().toUpperCase();
+  const [orgCode, setOrgCode] = useState(initialUrlCode);
   const [organization, setOrganization] = useState(null);
 
   const [formData, setFormData] = useState({
@@ -30,12 +32,13 @@ export default function Register() {
   const [verifying, setVerifying] = useState(false);
   const navigate = useNavigate();
 
-  const handleVerifyCode = async () => {
-    if (!orgCode.trim()) return;
+  const verifyCodeValue = async (codeToVerify) => {
+    const clean = (codeToVerify || '').trim();
+    if (!clean) return;
     setVerifying(true);
     setError('');
     try {
-      const data = await api.verifyOrgCode(orgCode);
+      const data = await api.verifyOrgCode(clean);
       setOrganization(data.organization);
       setZones(data.zones || []);
       setSections(data.sections || []);
@@ -47,6 +50,29 @@ export default function Register() {
       setVerifying(false);
     }
   };
+
+  const handleVerifyCode = () => verifyCodeValue(orgCode);
+
+  useEffect(() => {
+    if (!initialUrlCode) return;
+    let isActive = true;
+    api.verifyOrgCode(initialUrlCode)
+      .then((data) => {
+        if (!isActive) return;
+        setOrganization(data.organization);
+        setZones(data.zones || []);
+        setSections(data.sections || []);
+        setMinistries(data.ministries || []);
+      })
+      .catch((err) => {
+        if (!isActive) return;
+        setError(err.message || 'Invalid organization code.');
+        setOrganization(null);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [initialUrlCode]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

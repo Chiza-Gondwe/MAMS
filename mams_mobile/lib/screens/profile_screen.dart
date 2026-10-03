@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
 import '../theme/theme_controller.dart';
+import 'location_picker_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -49,6 +50,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     _existingProfileImage = widget.userData['profile_picture'];
+    _latitude = double.tryParse(widget.userData['latitude']?.toString() ?? '');
+    _longitude = double.tryParse(
+      widget.userData['longitude']?.toString() ?? '',
+    );
     _loadServerUrl();
   }
 
@@ -98,23 +103,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
         throw 'Location permissions are permanently denied.';
       }
 
-      Position position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 12),
-        ),
-      );
+      Position? position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 8),
+          ),
+        );
+      } catch (_) {
+        position = await Geolocator.getLastKnownPosition();
+      }
+
+      if (position == null) {
+        throw 'Could not get GPS fix indoors. Try "Pick on Map" instead.';
+      }
+
+      final res = await ApiService.updateProfile({
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+      });
+
       if (!mounted) return;
+      if (res.containsKey('error')) {
+        throw res['error'].toString();
+      }
+
       setState(() {
-        _latitude = position.latitude;
+        _latitude = position!.latitude;
         _longitude = position.longitude;
         _isGettingLocation = false;
+        _successMessage = 'GPS Home Location saved to Member Map!';
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _errorMessage = e.toString();
         _isGettingLocation = false;
+      });
+    }
+  }
+
+  Future<void> _pickLocationOnMap() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LocationPickerScreen(
+          initialLat: _latitude ?? -15.3875,
+          initialLng: _longitude ?? 28.3228,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+
+    final lat = result['lat'] as double?;
+    final lng = result['lng'] as double?;
+    final address = result['address'] as String?;
+    if (lat == null || lng == null) return;
+
+    setState(() {
+      _isGettingLocation = true;
+      _errorMessage = null;
+      _successMessage = null;
+    });
+
+    final payload = <String, dynamic>{
+      'latitude': lat,
+      'longitude': lng,
+    };
+    if (address != null && address.isNotEmpty) {
+      payload['address'] = address;
+    }
+
+    final res = await ApiService.updateProfile(payload);
+    if (!mounted) return;
+
+    if (res.containsKey('error')) {
+      setState(() {
+        _errorMessage = res['error'].toString();
+        _isGettingLocation = false;
+      });
+    } else {
+      setState(() {
+        _latitude = lat;
+        _longitude = lng;
+        _isGettingLocation = false;
+        _successMessage = 'Home pin saved to Member Map!';
       });
     }
   }
@@ -292,50 +366,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            Center(
-              child: TextButton.icon(
-                onPressed: _isGettingLocation ? null : _getLocation,
-                icon: _isGettingLocation
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(
-                        _latitude != null
-                            ? Icons.check_circle
-                            : Icons.location_on_outlined,
-                        color: _latitude != null
-                            ? colors.successGreen
-                            : colors.iconBadgeFg,
-                        size: 18,
-                      ),
-                label: Text(
-                  _latitude != null
-                      ? 'Location Updated!'
-                      : 'Update GPS Location',
-                  style: TextStyle(
-                    color: _latitude != null
-                        ? colors.successGreen
-                        : colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                TextButton.icon(
+                  onPressed: _isGettingLocation ? null : _getLocation,
+                  icon: _isGettingLocation
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          _latitude != null
+                              ? Icons.check_circle
+                              : Icons.my_location_rounded,
+                          color: _latitude != null
+                              ? colors.successGreen
+                              : colors.iconBadgeFg,
+                          size: 18,
+                        ),
+                  label: Text(
+                    _latitude != null ? 'GPS Saved ✓' : 'Use Current GPS',
+                    style: TextStyle(
+                      color: _latitude != null
+                          ? colors.successGreen
+                          : colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    backgroundColor: _latitude != null
+                        ? colors.successBg
+                        : colors.cardSurface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: colors.cardBorder),
+                    ),
                   ),
                 ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
+                TextButton.icon(
+                  onPressed: _isGettingLocation ? null : _pickLocationOnMap,
+                  icon: Icon(
+                    Icons.pin_drop_rounded,
+                    color: colors.iconBadgeFg,
+                    size: 18,
                   ),
-                  backgroundColor: _latitude != null
-                      ? colors.successBg
-                      : colors.cardSurface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(color: colors.cardBorder),
+                  label: Text(
+                    'Pick on Map',
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    backgroundColor: colors.cardSurface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: colors.cardBorder),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
             const SizedBox(height: 24),
 

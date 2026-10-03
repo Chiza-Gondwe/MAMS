@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Users, Search, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
+import { Building2, Plus, Users, Search, AlertCircle, CheckCircle2, Trash2, QrCode } from 'lucide-react';
 import { api } from '../api';
 
 export default function Organizations() {
@@ -12,6 +12,7 @@ export default function Organizations() {
   const [showOrgModal, setShowOrgModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState(null);
+  const [qrOrg, setQrOrg] = useState(null);
 
   // Forms state
   const [orgForm, setOrgForm] = useState({ name: '', org_type: 'CHURCH', city: 'LUSAKA' });
@@ -144,6 +145,12 @@ export default function Organizations() {
                     <td className="px-6 py-4 text-sm text-slate-600">{org.city}</td>
                     <td className="px-6 py-4 text-right">
                       <button 
+                        onClick={() => setQrOrg(org)}
+                        className="px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors inline-flex items-center gap-1 mr-2"
+                      >
+                        <QrCode className="w-3 h-3" /> Join QR
+                      </button>
+                      <button 
                         onClick={() => { setSelectedOrg(org); setShowAdminModal(true); }}
                         className="px-3 py-1.5 text-xs font-medium text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-md transition-colors flex items-center gap-1 inline-flex"
                       >
@@ -163,6 +170,80 @@ export default function Organizations() {
           </table>
         </div>
       </div>
+
+      {/* Organization Join QR Modal */}
+      {qrOrg && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center border border-slate-200">
+            <h3 className="text-xl font-bold text-slate-800">{qrOrg.name}</h3>
+            <p className="text-xs font-semibold text-sky-600 uppercase tracking-wider mt-1">
+              {qrOrg.org_type === 'PTA' ? 'School / PTA' : 'Church'} Join QR Code ({qrOrg.city})
+            </p>
+            <div className="my-5 p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl inline-block">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(`${window.location.origin}/register?org_code=${encodeURIComponent(qrOrg.org_code)}`)}`}
+                alt="Organization Join QR Code"
+                className="w-56 h-56 mx-auto"
+              />
+            </div>
+            <div className="mb-5">
+              <p className="text-xs text-slate-500 mb-1">Organization Join Code</p>
+              <span className="inline-block bg-sky-50 border border-sky-200 text-sky-800 font-mono font-bold text-xl px-5 py-2 rounded-xl tracking-widest">
+                {qrOrg.org_code}
+              </span>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const qrImg = `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(`${window.location.origin}/register?org_code=${encodeURIComponent(qrOrg.org_code)}`)}`;
+                  const win = window.open('', '_blank');
+                  win.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                      <head>
+                        <title>${qrOrg.name} - Join QR Poster</title>
+                        <style>
+                          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; padding: 40px; margin: 0; background: #fff; }
+                          .poster { max-width: 650px; margin: 0 auto; border: 4px solid #0284c7; border-radius: 24px; padding: 40px 30px; box-sizing: border-box; }
+                          h1 { font-size: 30px; color: #0f172a; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 1px; }
+                          h2 { font-size: 20px; color: #0284c7; margin: 0 0 24px 0; font-weight: 600; }
+                          .qr-wrapper { margin: 15px auto; padding: 16px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 20px; display: inline-block; }
+                          .qr-wrapper img { width: 300px; height: 300px; display: block; }
+                          .code-box { font-size: 26px; font-weight: 800; letter-spacing: 3px; color: #0369a1; background: #e0f2fe; padding: 10px 24px; border-radius: 12px; display: inline-block; margin-top: 16px; }
+                          .instructions { font-size: 17px; color: #334155; margin: 20px 0 8px 0; font-weight: bold; }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="poster">
+                          <h1>${qrOrg.name}</h1>
+                          <h2>Scan to Join Our ${qrOrg.org_type === 'PTA' ? 'School / PTA' : 'Congregation'} on MAMS</h2>
+                          <div class="qr-wrapper">
+                            <img src="${qrImg}" alt="Join QR Code" />
+                          </div>
+                          <br />
+                          <div class="code-box">${qrOrg.org_code}</div>
+                          <p class="instructions">Scan this QR code in the MAMS Mobile App (or with your phone camera) to register!</p>
+                        </div>
+                        <script>window.onload = function() { window.print(); };</script>
+                      </body>
+                    </html>
+                  `);
+                  win.document.close();
+                }}
+                className="flex-1 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+              >
+                Print Join Poster
+              </button>
+              <button
+                onClick={() => setQrOrg(null)}
+                className="px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold py-2.5 rounded-xl transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Organization Modal */}
       {showOrgModal && (

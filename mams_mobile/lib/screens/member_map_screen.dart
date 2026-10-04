@@ -245,7 +245,7 @@ class _MemberMapScreenState extends State<MemberMapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
                 userAgentPackageName: 'zm.org.mams.mobile',
               ),
               MarkerLayer(

@@ -158,6 +158,7 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 CORS_ALLOW_ALL_ORIGINS = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 CSRF_TRUSTED_ORIGINS = [
     'https://*.pythonanywhere.com',
     'https://*.vercel.app',

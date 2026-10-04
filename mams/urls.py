@@ -58,7 +58,16 @@ router.register(r'school/students', StudentViewSet, basename='student')
 router.register(r'sermons', SermonViewSet, basename='sermon')
 router.register(r'prayer-requests', PrayerRequestViewSet, basename='prayerrequest')
 
-def home(request):
+from django.http import FileResponse
+from django.urls import re_path
+from django.views.static import serve as static_serve
+
+FRONTEND_DIST = settings.BASE_DIR / 'frontend' / 'dist'
+
+def serve_react_index(request):
+    index_file = FRONTEND_DIST / 'index.html'
+    if index_file.exists():
+        return FileResponse(open(index_file, 'rb'), content_type='text/html')
     return HttpResponse("MAMS API is running")
 
 from communications.views import save_webpush_subscription
@@ -71,7 +80,7 @@ from members.views import create_local_admin, change_password, get_current_user,
 router.register(r'superadmin/organizations', SuperadminOrganizationViewSet, basename='superadmin-organization')
 
 urlpatterns = [
-    path('', home),
+    path('', serve_react_index),
     path('admin/', admin.site.urls),
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
@@ -94,4 +103,8 @@ urlpatterns = [
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    re_path(r'^assets/(?P<path>.*)$', static_serve, {'document_root': FRONTEND_DIST / 'assets'}),
+    re_path(r'^(?P<path>favicon\.svg|icons\.svg)$', static_serve, {'document_root': FRONTEND_DIST}),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + [
+    re_path(r'^(?!api/|admin/|static/|media/|assets/|webpush/).*$', serve_react_index),
+]

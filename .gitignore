@@ -9,7 +9,6 @@ db.sqlite3
 logs/
 node_modules/
 frontend/node_modules/
-frontend/dist/
 media/
 private_key.pem
 .DS_Store

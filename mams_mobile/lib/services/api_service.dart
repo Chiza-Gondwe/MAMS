@@ -7,9 +7,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
   static const _secureStorage = FlutterSecureStorage();
-  // Default URL: Laptop Wi-Fi / Hotspot IP (works wirelessly with runserver 0.0.0.0:8000)
-  static const String defaultBaseUrl = 'http://10.77.132.57:8000/api';
-  static const Duration _timeout = Duration(seconds: 10);
+  // Default URL: Permanent Cloud Server (works 24/7 anywhere on Mobile Data or Wi-Fi)
+  static const String defaultBaseUrl = 'https://mamszambia.pythonanywhere.com/api';
+  static const Duration _timeout = Duration(seconds: 15);
 
   static Map<String, String> _jsonHeaders([String? token]) {
     final headers = <String, String>{
@@ -28,8 +28,9 @@ class ApiService {
     final saved = prefs.getString('custom_base_url');
     if (saved == null ||
         saved.isEmpty ||
-        saved.contains('172.16.50.123') ||
-        saved.contains('127.0.0.1:8000')) {
+        saved.contains('172.16.') ||
+        saved.contains('10.77.') ||
+        saved.contains('127.0.0.1')) {
       await prefs.setString('custom_base_url', defaultBaseUrl);
       return defaultBaseUrl;
     }

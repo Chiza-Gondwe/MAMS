@@ -31,7 +31,7 @@ export default function Sermons() {
 
   const fetchSermons = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/sermons/', {
+      const response = await axios.get('/api/sermons/', {
         headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
       });
       setSermons(response.data.results || response.data || []);
@@ -43,7 +43,7 @@ export default function Sermons() {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this sermon?")) return;
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/sermons/${id}/`, {
+      await axios.delete(`/api/sermons/${id}/`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
       });
       fetchSermons();
@@ -56,7 +56,7 @@ export default function Sermons() {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post('http://127.0.0.1:8000/api/sermons/', formData, {
+      await axios.post('/api/sermons/', formData, {
         headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
       });
       setShowModal(false);

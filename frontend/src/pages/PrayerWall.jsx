@@ -18,7 +18,7 @@ export default function PrayerWall() {
 
   const fetchRequests = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/prayer-requests/', {
+      const response = await axios.get('/api/prayer-requests/', {
         headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
       });
       setRequests(response.data.results || response.data || []);
@@ -30,7 +30,7 @@ export default function PrayerWall() {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this prayer request?")) return;
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/prayer-requests/${id}/`, {
+      await axios.delete(`/api/prayer-requests/${id}/`, {
         headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
       });
       fetchRequests();
@@ -43,7 +43,7 @@ export default function PrayerWall() {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post('http://127.0.0.1:8000/api/prayer-requests/', formData, {
+      await axios.post('/api/prayer-requests/', formData, {
         headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
       });
       setShowModal(false);
@@ -65,7 +65,7 @@ export default function PrayerWall() {
 
   const handleUpdateStatus = async (id, status) => {
     try {
-      await axios.patch(`http://127.0.0.1:8000/api/prayer-requests/${id}/`, { status }, {
+      await axios.patch(`/api/prayer-requests/${id}/`, { status }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
       });
       fetchRequests();

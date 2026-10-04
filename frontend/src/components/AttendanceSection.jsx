@@ -255,7 +255,7 @@ export default function AttendanceSection() {
       );
       const firstCreated = results.find(r => r.id);
       if (firstCreated) {
-        setQrUrl(`http://127.0.0.1:8000/media/qr_codes/session_${firstCreated.id}.png`);
+        setQrUrl(`/media/qr_codes/session_${firstCreated.id}.png`);
         setSelectedSessionForQR(firstCreated);
       }
       setShowCreateModal(false);
@@ -324,7 +324,7 @@ export default function AttendanceSection() {
   };
 
   const getQRCodeUrl = (sessionId) => {
-    return `http://127.0.0.1:8000/media/qr_codes/session_${sessionId}.png`;
+    return `/media/qr_codes/session_${sessionId}.png`;
   };
 
   if (loading && sessions.length === 0) {

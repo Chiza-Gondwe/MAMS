@@ -421,8 +421,8 @@ export default function MyProfile() {
                     style={{ height: '100%', width: '100%' }}
                   >
                     <TileLayer
-                      attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-                      url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                      attribution='&copy; Google Maps &amp; OpenStreetMap contributors'
+                      url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
                     />
                     <MapClickHandler onPick={(lat, lng) => {
                       setTempLat(lat);

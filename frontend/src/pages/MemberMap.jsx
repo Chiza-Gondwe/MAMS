@@ -9,14 +9,18 @@ import { useAuth } from '../context/AuthContext';
 function MapBoundsUpdater({ members, currentUserId }) {
   const map = useMap();
   useEffect(() => {
-    if (!members || members.length === 0) return;
-    const me = members.find(m => m.id === currentUserId);
-    if (me && me.latitude && me.longitude) {
-      map.setView([me.latitude, me.longitude], 14);
-    } else {
-      const bounds = L.latLngBounds(members.map(m => [m.latitude, m.longitude]));
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
-    }
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+      if (!members || members.length === 0) return;
+      const me = members.find(m => m.id === currentUserId);
+      if (me && me.latitude && me.longitude) {
+        map.setView([Number(me.latitude), Number(me.longitude)], 15, { animate: false });
+      } else {
+        const bounds = L.latLngBounds(members.map(m => [Number(m.latitude), Number(m.longitude)]));
+        map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15, animate: false });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, [members, currentUserId, map]);
   return null;
 }
@@ -159,8 +163,8 @@ const MemberMap = () => {
     : [-15.3875, 28.3228]; 
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+    <div className="space-y-3 -mt-3">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Member Map</h1>
           <p className="text-xs text-slate-500 mt-0.5">Locate members and leadership for visits and pastoral care</p>
@@ -183,11 +187,11 @@ const MemberMap = () => {
         </div>
       </div>
       
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200" style={{ height: '70vh' }}>
-        <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%', borderRadius: '0.5rem' }}>
+      <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200" style={{ height: 'calc(100vh - 175px)', minHeight: '520px' }}>
+        <MapContainer center={center} zoom={15} style={{ height: '100%', width: '100%', borderRadius: '0.5rem' }}>
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            attribution='&copy; Google Maps &amp; OpenStreetMap contributors'
+            url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
           />
           <MapBoundsUpdater members={members} currentUserId={user?.member_id} />
           

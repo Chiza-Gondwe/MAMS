@@ -6,11 +6,11 @@ import mimetypes
 
 mimetypes.add_type("text/css", ".css", True)
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY')
+load_dotenv(BASE_DIR / '.env')
+
+SECRET_KEY = os.getenv('SECRET_KEY') or 'django-insecure-yk@hg90-k#-ft0-=rlxdo#z!t217q*q)$7ea&)-ojzdc1jk!l4'
 
 DEBUG = True
 
@@ -105,7 +105,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'mams.wsgi.application'
 
-if os.getenv('DB_ENGINE', '').lower() == 'sqlite3' or 'PYTHONANYWHERE_DOMAIN' in os.environ or 'PYTHONANYWHERE_SITE' in os.environ:
+if (
+    os.getenv('DB_ENGINE', '').lower() == 'sqlite3'
+    or 'PYTHONANYWHERE_DOMAIN' in os.environ
+    or 'PYTHONANYWHERE_SITE' in os.environ
+    or str(BASE_DIR).startswith('/home/')
+):
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',

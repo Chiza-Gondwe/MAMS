@@ -13,3 +13,5 @@ media/
 private_key.pem
 .DS_Store
 Thumbs.db
+
+.env

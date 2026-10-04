@@ -135,6 +135,15 @@ export default function Login() {
           <p className="text-sm text-slate-500">
             Are you a Leader/Admin? <span onClick={() => navigate('/register-church')} className="text-indigo-600 font-medium hover:text-indigo-700 cursor-pointer transition-colors">Register a new organization</span>
           </p>
+          <div className="pt-3 border-t border-slate-200/60 mt-3">
+            <a
+              href="/api/download-app/"
+              download="MAMS_Mobile.apk"
+              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-all shadow-sm"
+            >
+              <span>📲 Download Android Mobile App (.apk)</span>
+            </a>
+          </div>
         </div>
       </div>
     </div>

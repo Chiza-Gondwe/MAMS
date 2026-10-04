@@ -70,6 +70,17 @@ def serve_react_index(request):
         return FileResponse(open(index_file, 'rb'), content_type='text/html')
     return HttpResponse("MAMS API is running")
 
+def download_mobile_apk(request):
+    apk_file = settings.BASE_DIR / 'MAMS_Mobile_Release.apk'
+    if apk_file.exists():
+        return FileResponse(
+            open(apk_file, 'rb'),
+            as_attachment=True,
+            filename='MAMS_Mobile.apk',
+            content_type='application/vnd.android.package-archive',
+        )
+    return HttpResponse("MAMS Mobile APK not found on server.", status=404)
+
 from communications.views import save_webpush_subscription
 from church_profile.views import AnalyticsAPIView, MobileDashboardAPIView
 from church_profile.ai_engine import AIDraftMessageAPIView
@@ -81,6 +92,7 @@ router.register(r'superadmin/organizations', SuperadminOrganizationViewSet, base
 
 urlpatterns = [
     path('', serve_react_index),
+    path('api/download-app/', download_mobile_apk, name='download_mobile_apk'),
     path('admin/', admin.site.urls),
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

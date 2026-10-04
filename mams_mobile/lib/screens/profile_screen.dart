@@ -22,7 +22,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late TextEditingController _firstNameController;
   late TextEditingController _lastNameController;
   late TextEditingController _phoneController;
-  final TextEditingController _serverUrlController = TextEditingController();
   String _gender = 'M';
 
   File? _profileImage;
@@ -54,14 +53,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _longitude = double.tryParse(
       widget.userData['longitude']?.toString() ?? '',
     );
-    _loadServerUrl();
-  }
-
-  Future<void> _loadServerUrl() async {
-    final url = await ApiService.getBaseUrl();
-    if (mounted) {
-      setState(() => _serverUrlController.text = url);
-    }
   }
 
   Future<void> _takePhoto() async {
@@ -504,164 +495,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ],
                       );
                     },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Backend Server Connection (USB / Wi-Fi / Cloudflare or ngrok Tunnel)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.cardSurface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: colors.cardBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.cloud_sync_outlined,
-                        size: 18,
-                        color: colors.iconBadgeFg,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Server Connection (USB / Wireless Tunnel)',
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Select your laptop Wi-Fi IP (`172.16.50.68`) for wireless mode, or `127.0.0.1` for USB cable:',
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      ActionChip(
-                        label: const Text('Wi-Fi (172.16.50.68)'),
-                        backgroundColor: colors.iconBadgeBg,
-                        side: BorderSide(color: colors.cardBorder),
-                        labelStyle: TextStyle(
-                          color: colors.iconBadgeFg,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        onPressed: () async {
-                          _serverUrlController.text =
-                              'http://172.16.50.68:8000/api';
-                          await ApiService.setBaseUrl(
-                            _serverUrlController.text,
-                          );
-                          await _loadServerUrl();
-                        },
-                      ),
-                      ActionChip(
-                        label: const Text('USB (127.0.0.1)'),
-                        backgroundColor: colors.subtleSurface,
-                        side: BorderSide(color: colors.cardBorder),
-                        labelStyle: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        onPressed: () async {
-                          _serverUrlController.text =
-                              'http://127.0.0.1:8000/api';
-                          await ApiService.setBaseUrl(
-                            _serverUrlController.text,
-                          );
-                          await _loadServerUrl();
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _serverUrlController,
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontSize: 13,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'http://172.16.50.68:8000/api',
-                            hintStyle: TextStyle(color: colors.textMuted),
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 11,
-                            ),
-                            filled: true,
-                            fillColor: colors.subtleSurface,
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: colors.cardBorder),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                color: colors.accentBlue,
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        onPressed: () async {
-                          await ApiService.setBaseUrl(
-                            _serverUrlController.text,
-                          );
-                          await _loadServerUrl();
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Server URL updated to ${_serverUrlController.text}',
-                              ),
-                              backgroundColor: colors.primaryNavy,
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colors.primaryNavy,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 11,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        child: const Text(
-                          'Apply',
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),

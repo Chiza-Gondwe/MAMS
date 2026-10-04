@@ -294,7 +294,50 @@ class _HomeScreenState extends State<HomeScreen> {
                       displayOrg: displayOrg,
                       displayRole: displayRole,
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
+
+                    if (ApiService.isOfflineMode) ...[
+                      GestureDetector(
+                        onTap: _loadData,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFF59E0B)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.cloud_off_rounded,
+                                size: 18,
+                                color: Color(0xFFB45309),
+                              ),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Offline Mode • Showing saved data on your phone. Tap to sync when online.',
+                                  style: TextStyle(
+                                    color: Color(0xFF92400E),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                Icons.sync_rounded,
+                                size: 16,
+                                color: Color(0xFFB45309),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
 
                     // 2. Unified Deep-Navy Summary Card
                     if (isAdmin) ...[

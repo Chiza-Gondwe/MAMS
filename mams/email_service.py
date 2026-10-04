@@ -41,13 +41,23 @@ def _send_single_with_retry(subject, body, recipient_email, org_name=None, max_r
 
 def send_email_async(subject, body, recipient_email, org_name=None):
     """
-    Queues a single transactional email (OTP verification, password reset, welcome email)
-    in the background thread pool so the HTTP request returns immediately (<50ms) without
-    freezing Django or timing out the mobile app when internet is slow.
+    Queues a single transactional email (OTP verification, password reset, welcome email).
+    On PythonAnywhere uWSGI (where background threads are paused after the HTTP response),
+    sends synchronously with a fast timeout so Gmail SMTP always completes.
     """
     if not recipient_email:
         return
-    _email_executor.submit(_send_single_with_retry, subject, body, recipient_email.strip(), org_name)
+    import os
+    is_pythonanywhere = bool(
+        os.environ.get("PYTHONANYWHERE_DOMAIN")
+        or os.environ.get("PYTHONANYWHERE_SITE")
+        or "pythonanywhere" in os.environ.get("HOSTNAME", "").lower()
+        or os.getenv("DB_ENGINE", "").lower() == "sqlite3"
+    )
+    if is_pythonanywhere:
+        _send_single_with_retry(subject, body, recipient_email.strip(), org_name, max_retries=1)
+    else:
+        _email_executor.submit(_send_single_with_retry, subject, body, recipient_email.strip(), org_name)
 
 
 def _send_bulk_batches_with_retry(subject, body, recipient_emails, org_name=None, batch_size=50):

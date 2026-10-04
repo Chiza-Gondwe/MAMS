@@ -21,7 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
-  String _currentServerUrl = ApiService.defaultBaseUrl;
   bool _canCheckBiometrics = false;
   bool _hasVaultCredentials = false;
   String _savedFullName = '';
@@ -31,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCurrentServerUrl();
     _checkBiometrics();
     _loadSavedMemberProfile();
   }
@@ -132,15 +130,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _loadCurrentServerUrl() async {
-    final url = await ApiService.getBaseUrl();
-    if (mounted) {
-      setState(() {
-        _currentServerUrl = url;
-      });
-    }
-  }
-
   void _login() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
@@ -178,105 +167,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _showServerSettingsDialog() {
-    final controller = TextEditingController(text: _currentServerUrl);
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          title: const Row(
-            children: [
-              Icon(Icons.dns, color: Color(0xFF818CF8)),
-              SizedBox(width: 8),
-              Text(
-                'Server Address',
-                style: TextStyle(color: Colors.white, fontSize: 18),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Backend API URL:',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: controller,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  hintText: 'http://127.0.0.1:8000/api',
-                  hintStyle: TextStyle(color: Colors.white30),
-                  filled: true,
-                  fillColor: Color(0xFF0F172A),
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Quick Presets:',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  ActionChip(
-                    label: const Text('Wi-Fi (172.16.50.68)'),
-                    backgroundColor: const Color(0xFF1E3A8A),
-                    labelStyle: const TextStyle(color: Colors.white, fontSize: 11),
-                    onPressed: () {
-                      controller.text = 'http://172.16.50.68:8000/api';
-                    },
-                  ),
-                  ActionChip(
-                    label: const Text('USB (localhost)'),
-                    backgroundColor: const Color(0xFF334155),
-                    labelStyle: const TextStyle(color: Colors.white, fontSize: 11),
-                    onPressed: () {
-                      controller.text = 'http://127.0.0.1:8000/api';
-                    },
-                  ),
-                  ActionChip(
-                    label: const Text('Emulator'),
-                    backgroundColor: const Color(0xFF334155),
-                    labelStyle: const TextStyle(color: Colors.white, fontSize: 11),
-                    onPressed: () {
-                      controller.text = 'http://10.0.2.2:8000/api';
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await ApiService.setBaseUrl(controller.text);
-                await _loadCurrentServerUrl();
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = MamsColors.of(context);
@@ -295,11 +185,6 @@ class _LoginScreenState extends State<LoginScreen> {
               final next = colors.isDark ? ThemeMode.light : ThemeMode.dark;
               ThemeController.setThemeMode(next);
             },
-          ),
-          IconButton(
-            tooltip: 'Server Settings',
-            icon: Icon(Icons.settings_outlined, color: colors.textSecondary, size: 21),
-            onPressed: _showServerSettingsDialog,
           ),
           const SizedBox(width: 6),
         ],

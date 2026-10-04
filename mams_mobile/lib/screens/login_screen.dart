@@ -639,14 +639,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
-                TextButton.icon(
-                  icon: Icon(Icons.dns_outlined, size: 14, color: colors.textMuted),
-                  label: Text(
-                    'Server: $_currentServerUrl',
-                    style: TextStyle(color: colors.textMuted, fontSize: 12),
-                  ),
-                  onPressed: _showServerSettingsDialog,
-                ),
               ],
             ),
           ),

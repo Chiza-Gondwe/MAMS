@@ -81,6 +81,25 @@ def download_mobile_apk(request):
         )
     return HttpResponse("MAMS Mobile APK not found on server.", status=404)
 
+def app_version_info(request):
+    import json
+    from django.http import JsonResponse
+    version_file = settings.BASE_DIR / 'mams' / 'app_version.json'
+    data = {
+        "version": "1.2.0",
+        "build_number": 2,
+        "release_notes": "Latest MAMS Mobile release.",
+    }
+    if version_file.exists():
+        try:
+            with open(version_file, 'r', encoding='utf-8') as f:
+                data.update(json.load(f))
+        except Exception:
+            pass
+    scheme = 'https' if request.is_secure() or 'pythonanywhere.com' in request.get_host() else request.scheme
+    data['download_url'] = f"{scheme}://{request.get_host()}/api/download-app/?v={data.get('build_number', 2)}"
+    return JsonResponse(data)
+
 from communications.views import save_webpush_subscription
 from church_profile.views import AnalyticsAPIView, MobileDashboardAPIView
 from church_profile.ai_engine import AIDraftMessageAPIView
@@ -93,6 +112,7 @@ router.register(r'superadmin/organizations', SuperadminOrganizationViewSet, base
 urlpatterns = [
     path('', serve_react_index),
     path('api/download-app/', download_mobile_apk, name='download_mobile_apk'),
+    path('api/app-version/', app_version_info, name='app_version_info'),
     path('admin/', admin.site.urls),
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

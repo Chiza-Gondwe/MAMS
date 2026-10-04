@@ -592,7 +592,30 @@ def create_local_admin(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register_member(request):
-    serializer = RegisterMemberSerializer(data=request.data)
+    import json
+    payload = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+    raw_ministries = payload.get('ministries')
+    if isinstance(raw_ministries, str):
+        raw_str = raw_ministries.strip()
+        if raw_str.startswith('['):
+            try:
+                parsed = json.loads(raw_str)
+                if hasattr(payload, 'setlist'):
+                    payload.setlist('ministries', [int(x) for x in parsed if str(x).isdigit()])
+                else:
+                    payload['ministries'] = [int(x) for x in parsed if str(x).isdigit()]
+            except Exception:
+                pass
+        elif raw_str:
+            ids = [int(x.strip()) for x in raw_str.split(',') if x.strip().isdigit()]
+            if hasattr(payload, 'setlist'):
+                payload.setlist('ministries', ids)
+            else:
+                payload['ministries'] = ids
+        else:
+            payload.pop('ministries', None)
+
+    serializer = RegisterMemberSerializer(data=payload)
     if serializer.is_valid():
         member = serializer.save()
         # Auto-geocode address if provided and not already explicitly set

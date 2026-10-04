@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../theme/theme_controller.dart';
 import 'location_picker_screen.dart';
@@ -16,6 +17,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
+  bool _checkingUpdate = false;
   String? _errorMessage;
   String? _successMessage;
 
@@ -565,10 +567,131 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
             ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: colors.cardSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.cardBorder),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.system_update_rounded,
+                    size: 20,
+                    color: colors.iconBadgeFg,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'App Version v${ApiService.currentAppVersion}',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        Text(
+                          'Check for new MAMS Mobile updates',
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton(
+                    onPressed: _checkingUpdate ? null : _checkForUpdates,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      side: BorderSide(color: colors.cardBorder),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: _checkingUpdate
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colors.textPrimary,
+                            ),
+                          )
+                        : Text(
+                            'Check Update',
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _checkForUpdates() async {
+    setState(() => _checkingUpdate = true);
+    final info = await ApiService.checkAppUpdate();
+    if (!mounted) return;
+    setState(() => _checkingUpdate = false);
+
+    if (info['has_update'] == true) {
+      final latestVersion = (info['latest_version'] ?? '').toString();
+      final notes = (info['release_notes'] ?? 'A new version is ready to install.').toString();
+      final downloadUrl = (info['download_url'] ?? 'https://mamszambia.pythonanywhere.com/api/download-app/').toString();
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Update Available (v$latestVersion)'),
+          content: Text(notes),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Later'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final uri = Uri.tryParse(downloadUrl);
+                if (uri != null) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              child: const Text('Update Now'),
+            ),
+          ],
+        ),
+      );
+    } else if (info['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('You are on the latest version (v${ApiService.currentAppVersion})!'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not reach update server. Check your internet connection.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Widget _buildModeChip(

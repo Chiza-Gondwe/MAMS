@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../theme/theme_controller.dart';
 import 'member_map_screen.dart';
@@ -25,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _unreadNotifCount = 0;
   Map<String, dynamic>? _stats;
   Map<String, dynamic>? _userData;
+  Map<String, dynamic>? _updateInfo;
   bool _loading = true;
   int _selectedNavIndex = 0;
   String _role = 'member';
@@ -37,6 +39,24 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadData();
+    _checkForAppUpdate();
+  }
+
+  Future<void> _checkForAppUpdate() async {
+    final info = await ApiService.checkAppUpdate();
+    if (mounted && info['has_update'] == true) {
+      setState(() {
+        _updateInfo = info;
+      });
+    }
+  }
+
+  Future<void> _launchUpdateDownload() async {
+    final urlStr = (_updateInfo?['download_url'] ?? 'https://mamszambia.pythonanywhere.com/api/download-app/').toString();
+    final uri = Uri.tryParse(urlStr);
+    if (uri != null) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   Future<void> _loadData() async {
@@ -334,6 +354,77 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ],
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+
+                    if (_updateInfo != null && _updateInfo!['has_update'] == true) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF10B981)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.system_update_rounded,
+                              size: 22,
+                              color: Color(0xFF059669),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Update Available (v${_updateInfo!['latest_version']})',
+                                    style: const TextStyle(
+                                      color: Color(0xFF065F46),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    (_updateInfo!['release_notes'] ?? 'Tap Update to install the latest version.').toString(),
+                                    style: const TextStyle(
+                                      color: Color(0xFF047857),
+                                      fontSize: 11.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: _launchUpdateDownload,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF059669),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'Update',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 14),

@@ -88,18 +88,23 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
         model = Member
         fields = [
             'first_name', 'middle_name', 'last_name', 'email',
-            'phone_number', 'role', 'status', 'gender', 'password', 'ministries', 'section_id', 'zone_id', 'organization',
+            'phone_number', 'address', 'role', 'status', 'gender', 'password', 'ministries', 'section_id', 'zone_id', 'organization',
             'profile_picture', 'latitude', 'longitude'
         ]
         extra_kwargs = {
             'middle_name': {'required': False, 'allow_blank': True},
+            'address': {'required': False, 'allow_blank': True},
         }
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
         ministries = validated_data.pop('ministries', [])
         organization = validated_data.pop('organization', None)
-        status_val = validated_data.pop('status', 'pending_review')
+        selected_section = validated_data.get('section')
+        if selected_section and not validated_data.get('zone') and getattr(selected_section, 'zone', None):
+            validated_data['zone'] = selected_section.zone
+        default_status = 'active' if selected_section else 'pending_review'
+        status_val = validated_data.pop('status', default_status)
         
         with transaction.atomic():
             email = validated_data['email']

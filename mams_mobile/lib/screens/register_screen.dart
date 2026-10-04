@@ -22,6 +22,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Step 1: Org Code
   final _orgCodeController = TextEditingController();
   Map<String, dynamic>? _organization;
+  List<Map<String, dynamic>> _zones = [];
+  List<Map<String, dynamic>> _sections = [];
+  List<Map<String, dynamic>> _ministries = [];
 
   // Step 2: Details
   final _firstNameController = TextEditingController();
@@ -29,8 +32,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
   final _passwordController = TextEditingController();
   String _gender = 'M';
+  int? _selectedZoneId;
+  int? _selectedSectionId;
+  final List<int> _selectedMinistryIds = [];
   
   File? _profileImage;
   double? _latitude;
@@ -160,8 +167,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     if (result.containsKey('organization')) {
+      final rawZones = (result['zones'] as List?) ?? [];
+      final rawSections = (result['sections'] as List?) ?? [];
+      final rawMinistries = (result['ministries'] as List?) ?? [];
       setState(() {
-        _organization = result['organization'];
+        _organization = Map<String, dynamic>.from(result['organization'] as Map);
+        _zones = rawZones
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _sections = rawSections
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _ministries = rawMinistries
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _selectedZoneId = null;
+        _selectedSectionId = null;
+        _selectedMinistryIds.clear();
         _step = 2;
       });
     } else {
@@ -228,7 +253,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _errorMessage = null;
     });
 
-    final data = {
+    final data = <String, dynamic>{
       'first_name': _firstNameController.text.trim(),
       'middle_name': _middleNameController.text.trim(),
       'last_name': _lastNameController.text.trim(),
@@ -238,7 +263,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'gender': _gender,
       'organization': _organization!['id'],
     };
-    
+    if (_addressController.text.trim().isNotEmpty) {
+      data['address'] = _addressController.text.trim();
+    }
+    if (_selectedZoneId != null) {
+      data['zone_id'] = _selectedZoneId;
+    }
+    if (_selectedSectionId != null) {
+      data['section_id'] = _selectedSectionId;
+    }
+    if (_selectedMinistryIds.isNotEmpty) {
+      data['ministries'] = _selectedMinistryIds;
+    }
     if (_latitude != null) data['latitude'] = _latitude;
     if (_longitude != null) data['longitude'] = _longitude;
 
@@ -546,6 +582,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 12),
                   _buildTextField(colors, _phoneController, 'Phone Number *', keyboardType: TextInputType.phone),
                   const SizedBox(height: 12),
+                  _buildTextField(
+                    colors,
+                    _addressController,
+                    'Residential Area / Address (e.g. Kabwata, Lusaka)',
+                  ),
+                  const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _gender,
                     dropdownColor: colors.cardSurface,
@@ -570,6 +612,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                     onChanged: (val) => setState(() => _gender = val!),
                   ),
+                  const SizedBox(height: 12),
+                  _buildZoneAndSectionSelectors(colors),
+                  if (_ministries.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    _buildMinistriesSelector(colors),
+                  ],
                   const SizedBox(height: 12),
                   _buildTextField(colors, _passwordController, 'Password *', obscureText: true),
                   const SizedBox(height: 24),
@@ -629,6 +677,219 @@ class _RegisterScreenState extends State<RegisterScreen> {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: colors.accentBlue, width: 1.5),
         ),
+      ),
+    );
+  }
+
+  Widget _buildZoneAndSectionSelectors(MamsColors colors) {
+    final orgType = (_organization?['org_type'] ?? 'CHURCH').toString().toUpperCase();
+    final zoneLabel = orgType == 'SCHOOL'
+        ? 'Grade / Department (Optional)'
+        : orgType == 'CLUB'
+            ? 'Division / Region (Optional)'
+            : 'Zone (Optional)';
+    final sectionLabel = orgType == 'SCHOOL'
+        ? 'Class / Stream (Optional)'
+        : orgType == 'CLUB'
+            ? 'Branch / Chapter (Optional)'
+            : 'Section / Branch (Optional)';
+
+    final filteredSections = _selectedZoneId == null
+        ? _sections
+        : _sections.where((s) {
+            final z = s['zone'];
+            return z == null || z.toString() == _selectedZoneId.toString();
+          }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<int?>(
+          key: ValueKey('zone_$_selectedZoneId'),
+          initialValue: _selectedZoneId,
+          dropdownColor: colors.cardSurface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            labelText: zoneLabel,
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 14),
+            filled: true,
+            fillColor: colors.subtleSurface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: colors.cardBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: colors.cardBorder),
+            ),
+          ),
+          items: [
+            DropdownMenuItem<int?>(
+              value: null,
+              child: Text(
+                '-- Not sure / Assign later --',
+                style: TextStyle(color: colors.textSecondary, fontSize: 14),
+              ),
+            ),
+            ..._zones.map((z) {
+              final id = int.tryParse(z['id'].toString());
+              return DropdownMenuItem<int?>(
+                value: id,
+                child: Text(
+                  (z['name'] ?? '').toString(),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14.5),
+                ),
+              );
+            }),
+          ],
+          onChanged: (val) {
+            setState(() {
+              _selectedZoneId = val;
+              if (_selectedSectionId != null && val != null) {
+                final sec = _sections.firstWhere(
+                  (s) => int.tryParse(s['id'].toString()) == _selectedSectionId,
+                  orElse: () => {},
+                );
+                if (sec.isNotEmpty &&
+                    sec['zone'] != null &&
+                    sec['zone'].toString() != val.toString()) {
+                  _selectedSectionId = null;
+                }
+              }
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<int?>(
+          key: ValueKey('section_${_selectedZoneId}_$_selectedSectionId'),
+          initialValue: _selectedSectionId,
+          dropdownColor: colors.cardSurface,
+          style: TextStyle(color: colors.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            labelText: sectionLabel,
+            labelStyle: TextStyle(color: colors.textSecondary, fontSize: 14),
+            filled: true,
+            fillColor: colors.subtleSurface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: colors.cardBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: colors.cardBorder),
+            ),
+          ),
+          items: [
+            DropdownMenuItem<int?>(
+              value: null,
+              child: Text(
+                '-- Not sure / Assign later --',
+                style: TextStyle(color: colors.textSecondary, fontSize: 14),
+              ),
+            ),
+            ...filteredSections.map((s) {
+              final id = int.tryParse(s['id'].toString());
+              return DropdownMenuItem<int?>(
+                value: id,
+                child: Text(
+                  (s['name'] ?? '').toString(),
+                  style: TextStyle(color: colors.textPrimary, fontSize: 14.5),
+                ),
+              );
+            }),
+          ],
+          onChanged: (val) {
+            setState(() {
+              _selectedSectionId = val;
+              if (val != null) {
+                final sec = _sections.firstWhere(
+                  (s) => int.tryParse(s['id'].toString()) == val,
+                  orElse: () => {},
+                );
+                final zId = int.tryParse(sec['zone']?.toString() ?? '');
+                if (zId != null) {
+                  _selectedZoneId = zId;
+                }
+              }
+            });
+          },
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Know your ${orgType == 'SCHOOL' ? 'Grade or Class' : 'Zone or Section'}? Select it above to join immediately, or leave it blank so your administrator can assign you.',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: 11.5,
+            height: 1.35,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMinistriesSelector(MamsColors colors) {
+    final orgType = (_organization?['org_type'] ?? 'CHURCH').toString().toUpperCase();
+    final groupTitle = orgType == 'SCHOOL'
+        ? 'Join Committees / Clubs (Optional)'
+        : orgType == 'CLUB'
+            ? 'Join Sub-Committees / Teams (Optional)'
+            : 'Join Fellowship Groups / Ministries (Optional)';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.subtleSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.cardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            groupTitle,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _ministries.map((m) {
+              final id = int.tryParse(m['id'].toString());
+              if (id == null) return const SizedBox.shrink();
+              final isSelected = _selectedMinistryIds.contains(id);
+              return FilterChip(
+                label: Text(
+                  (m['name'] ?? '').toString(),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected ? Colors.white : colors.textPrimary,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: colors.primaryNavy,
+                checkmarkColor: Colors.white,
+                backgroundColor: colors.cardSurface,
+                side: BorderSide(
+                  color: isSelected ? colors.primaryNavy : colors.cardBorder,
+                ),
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedMinistryIds.add(id);
+                    } else {
+                      _selectedMinistryIds.remove(id);
+                    }
+                  });
+                },
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }

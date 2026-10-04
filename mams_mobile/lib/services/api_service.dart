@@ -11,8 +11,46 @@ class ApiService {
   static const String defaultBaseUrl = 'https://mamszambia.pythonanywhere.com/api';
   static const Duration _timeout = Duration(seconds: 12);
 
+  /// Installed APK version & build number (checked against /api/app-version/)
+  static const String currentAppVersion = '1.2.0';
+  static const int currentBuildNumber = 2;
+
   /// Tracks whether the app is currently operating on cached offline data
   static bool isOfflineMode = false;
+
+  static Future<Map<String, dynamic>> checkAppUpdate() async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/app-version/'),
+            headers: _jsonHeaders(),
+          )
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          final remoteBuild = int.tryParse(data['build_number']?.toString() ?? '') ?? currentBuildNumber;
+          final remoteVersion = (data['version'] ?? currentAppVersion).toString();
+          final downloadUrl = (data['download_url'] ?? 'https://mamszambia.pythonanywhere.com/api/download-app/').toString();
+          final notes = (data['release_notes'] ?? 'A new version of MAMS Mobile is available.').toString();
+          return {
+            'success': true,
+            'has_update': remoteBuild > currentBuildNumber,
+            'current_version': currentAppVersion,
+            'current_build': currentBuildNumber,
+            'latest_version': remoteVersion,
+            'latest_build': remoteBuild,
+            'release_notes': notes,
+            'download_url': downloadUrl,
+          };
+        }
+      }
+      return {'success': false, 'has_update': false};
+    } catch (_) {
+      return {'success': false, 'has_update': false};
+    }
+  }
 
   static Map<String, String> _jsonHeaders([String? token]) {
     final headers = <String, String>{
@@ -427,7 +465,13 @@ class ApiService {
 
         data.forEach((key, value) {
           if (value != null) {
-            request.fields[key] = value.toString();
+            if (value is List) {
+              if (value.isNotEmpty) {
+                request.fields[key] = jsonEncode(value);
+              }
+            } else {
+              request.fields[key] = value.toString();
+            }
           }
         });
 

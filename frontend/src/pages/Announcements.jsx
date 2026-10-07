@@ -105,7 +105,9 @@ export default function Announcements() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-semibold text-slate-800">Announcements</h2>
-          <p className="text-sm text-slate-500 mt-1">Manage and publish church communications</p>
+          <p className="text-sm text-slate-500 mt-1">
+            Manage and publish {user?.org_type === 'PTA' ? 'school & PTA' : 'church'} communications
+          </p>
         </div>
         <div className="flex gap-3 items-center">
           <div className="relative">
@@ -181,140 +183,184 @@ export default function Announcements() {
 
       {/* Create Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100">
-              <h2 className="text-xl font-semibold text-slate-800">New Announcement</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50" onClick={() => setIsModalOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-100" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 shrink-0 bg-white">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-800">New Announcement</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Publish an official {user?.org_type === 'PTA' ? 'school / PTA' : 'congregation'} announcement
+                </p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {/* AI Smart Announcement Drafter */}
-              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                    AI Smart Announcement Drafter
-                  </span>
-                  <select
-                    value={aiTone}
-                    onChange={e => setAiTone(e.target.value)}
-                    className="text-xs px-2 py-1 rounded border border-blue-200 bg-white text-slate-700 font-medium focus:outline-none"
-                  >
-                    <option value="warm">Warm & Welcoming</option>
-                    <option value="formal">Official & Formal</option>
-                    <option value="urgent">Urgent Notice</option>
-                  </select>
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 space-y-5 overflow-y-auto flex-1">
+                {/* AI Smart Announcement Drafter */}
+                <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      AI Smart Announcement Drafter
+                    </span>
+                    <select
+                      value={aiTone}
+                      onChange={e => setAiTone(e.target.value)}
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-slate-700 font-medium focus:outline-none"
+                    >
+                      <option value="warm">Warm & Welcoming</option>
+                      <option value="formal">Official & Formal</option>
+                      <option value="urgent">Urgent Notice</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <input
+                      type="text"
+                      value={aiPrompt}
+                      onChange={e => setAiPrompt(e.target.value)}
+                      placeholder={user?.org_type === 'PTA' ? 'Brief notes, e.g. PTA General Meeting Friday at 14:00 in Main Hall...' : 'Brief notes, e.g. Choir rehearsal Saturday at 14:00 in Main Sanctuary...'}
+                      className="flex-1 px-3.5 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGenerateWithAI}
+                      disabled={aiGenerating}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shrink-0 transition-colors disabled:opacity-60"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {aiGenerating ? 'Drafting...' : 'Generate with AI'}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Title</label>
                   <input
+                    required
                     type="text"
-                    value={aiPrompt}
-                    onChange={e => setAiPrompt(e.target.value)}
-                    placeholder="Brief notes, e.g. Choir rehearsal Saturday 14:00..."
-                    className="flex-1 px-3 py-1.5 bg-white border border-blue-200 rounded-lg text-xs focus:outline-none focus:border-blue-500"
+                    placeholder={user?.org_type === 'PTA' ? 'e.g. Term 3 PTA General Meeting Notice' : 'e.g. Sunday Service & Fellowship Notice'}
+                    value={formData.title}
+                    onChange={e => setFormData({...formData, title: e.target.value})}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
                   />
-                  <button
-                    type="button"
-                    onClick={handleGenerateWithAI}
-                    disabled={aiGenerating}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors disabled:opacity-60"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    {aiGenerating ? 'Drafting...' : 'Generate with AI'}
-                  </button>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
-                <input required type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400" />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
-                  <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400">
-                    <option value="text">Text</option>
-                    <option value="video">Video</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Audience</label>
-                  <select value={formData.audience} onChange={e => setFormData({...formData, audience: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400">
-                    {user?.role === 'admin' && <option value="all">Everyone {user?.org_type === 'PTA' ? '(Students & PTA)' : '(Entire Congregation)'}</option>}
-                    <option value="members">{user?.org_type === 'PTA' ? 'Parents/Students Only' : 'Church Members Only'}</option>
-                    {user?.role !== 'group_leader' && <option value="leaders">{user?.org_type === 'PTA' ? 'All Teachers/Officials' : 'All Leaders'}</option>}
-                    {user?.role === 'admin' || user?.role === 'section_admin' ? <option value="section_admins">{user?.org_type === 'PTA' ? 'Grade Leaders Only' : 'Section Leaders Only'}</option> : null}
-                    {user?.role === 'admin' || user?.role === 'zone_admin' ? <option value="zone_admins">{user?.org_type === 'PTA' ? 'Department Heads Only' : 'Zone Leaders Only'}</option> : null}
-                    {user?.role === 'admin' && user?.org_type === 'PTA' && <option value="pta">PTA Officials Only</option>}
-                  </select>
-                </div>
-              </div>
-
-              {(user?.role === 'admin' || user?.role === 'superadmin') && (formData.audience === 'all' || formData.audience === 'members' || formData.audience === 'section_admins' || formData.audience === 'zone_admins') ? (
-                  <div className="space-y-4 pt-4 border-t border-slate-200">
-                    <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Specific {user?.org_type === 'PTA' ? 'Classes' : 'Sections'} (Optional)</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-                      {sections.map(s => (
-                        <label key={s.id} className="flex items-center space-x-2 text-sm text-slate-700">
-                          <input type="checkbox" checked={formData.target_sections.includes(s.id)} onChange={(e) => {
-                            if (e.target.checked) setFormData({...formData, target_sections: [...formData.target_sections, s.id]});
-                            else setFormData({...formData, target_sections: formData.target_sections.filter(id => id !== s.id)});
-                          }} className="rounded text-sky-600 focus:ring-sky-500" />
-                          <span>{s.name}</span>
-                        </label>
-                      ))}
-                    </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Type</label>
+                    <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 bg-white">
+                      <option value="text">Text Announcement</option>
+                      <option value="video">Video Announcement</option>
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Specific {user?.org_type === 'PTA' ? 'Grades' : 'Zones'} (Optional)</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-                      {zones.map(z => (
-                        <label key={z.id} className="flex items-center space-x-2 text-sm text-slate-700">
-                          <input type="checkbox" checked={formData.target_zones.includes(z.id)} onChange={(e) => {
-                            if (e.target.checked) setFormData({...formData, target_zones: [...formData.target_zones, z.id]});
-                            else setFormData({...formData, target_zones: formData.target_zones.filter(id => id !== z.id)});
-                          }} className="rounded text-sky-600 focus:ring-sky-500" />
-                          <span>{z.name}</span>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Audience</label>
+                    <select value={formData.audience} onChange={e => setFormData({...formData, audience: e.target.value})} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 bg-white">
+                      {user?.role === 'admin' && <option value="all">Everyone {user?.org_type === 'PTA' ? '(Students & PTA)' : '(Entire Congregation)'}</option>}
+                      <option value="members">{user?.org_type === 'PTA' ? 'Parents & Students Only' : 'Church Members Only'}</option>
+                      {user?.role !== 'group_leader' && <option value="leaders">{user?.org_type === 'PTA' ? 'All Teachers / Officials' : 'All Leaders'}</option>}
+                      {user?.role === 'admin' || user?.role === 'section_admin' ? <option value="section_admins">{user?.org_type === 'PTA' ? 'Class Teachers Only' : 'Section Leaders Only'}</option> : null}
+                      {user?.role === 'admin' || user?.role === 'zone_admin' ? <option value="zone_admins">{user?.org_type === 'PTA' ? 'Grade Heads Only' : 'Zone Leaders Only'}</option> : null}
+                      {user?.role === 'admin' && user?.org_type === 'PTA' && <option value="pta">PTA Officials Only</option>}
+                    </select>
+                  </div>
+                </div>
+
+                {(user?.role === 'admin' || user?.role === 'superadmin') && (formData.audience === 'all' || formData.audience === 'members' || formData.audience === 'section_admins' || formData.audience === 'zone_admins') ? (
+                  <div className="space-y-3 pt-3 border-t border-slate-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                          Target {user?.org_type === 'PTA' ? 'Classes' : 'Sections'} (Optional)
                         </label>
-                      ))}
+                        <div className="p-2.5 border border-slate-200 rounded-lg bg-slate-50/70 max-h-32 overflow-y-auto space-y-1.5">
+                          {sections.length > 0 ? sections.map(s => (
+                            <label key={s.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:text-slate-900">
+                              <input type="checkbox" checked={formData.target_sections.includes(s.id)} onChange={(e) => {
+                                if (e.target.checked) setFormData({...formData, target_sections: [...formData.target_sections, s.id]});
+                                else setFormData({...formData, target_sections: formData.target_sections.filter(id => id !== s.id)});
+                              }} className="rounded text-sky-600 focus:ring-sky-500" />
+                              <span className="truncate">{s.name}</span>
+                            </label>
+                          )) : (
+                            <p className="text-xs text-slate-400 italic py-1">
+                              No {user?.org_type === 'PTA' ? 'classes' : 'sections'} created yet
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                          Target {user?.org_type === 'PTA' ? 'Grades' : 'Zones'} (Optional)
+                        </label>
+                        <div className="p-2.5 border border-slate-200 rounded-lg bg-slate-50/70 max-h-32 overflow-y-auto space-y-1.5">
+                          {zones.length > 0 ? zones.map(z => (
+                            <label key={z.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:text-slate-900">
+                              <input type="checkbox" checked={formData.target_zones.includes(z.id)} onChange={(e) => {
+                                if (e.target.checked) setFormData({...formData, target_zones: [...formData.target_zones, z.id]});
+                                else setFormData({...formData, target_zones: formData.target_zones.filter(id => id !== z.id)});
+                              }} className="rounded text-sky-600 focus:ring-sky-500" />
+                              <span className="truncate">{z.name}</span>
+                            </label>
+                          )) : (
+                            <p className="text-xs text-slate-400 italic py-1">
+                              No {user?.org_type === 'PTA' ? 'grades' : 'zones'} created yet
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                          Target {user?.org_type === 'PTA' ? 'Committees' : 'Ministries'} (Optional)
+                        </label>
+                        <div className="p-2.5 border border-slate-200 rounded-lg bg-slate-50/70 max-h-32 overflow-y-auto space-y-1.5">
+                          {ministries.length > 0 ? ministries.map(m => (
+                            <label key={m.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:text-slate-900">
+                              <input type="checkbox" checked={formData.target_ministries.includes(m.id)} onChange={(e) => {
+                                if (e.target.checked) setFormData({...formData, target_ministries: [...formData.target_ministries, m.id]});
+                                else setFormData({...formData, target_ministries: formData.target_ministries.filter(id => id !== m.id)});
+                              }} className="rounded text-sky-600 focus:ring-sky-500" />
+                              <span className="truncate">{m.name}</span>
+                            </label>
+                          )) : (
+                            <p className="text-xs text-slate-400 italic py-1">
+                              No {user?.org_type === 'PTA' ? 'committees' : 'ministries'} created yet
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
+                ) : null}
+
+                {formData.type === 'video' && (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Target Specific {user?.org_type === 'PTA' ? 'Committees' : 'Ministries'} (Optional)</label>
-                    <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border border-slate-200 rounded-md">
-                      {ministries.map(m => (
-                        <label key={m.id} className="flex items-center gap-2 text-sm text-slate-700">
-                          <input type="checkbox" checked={formData.target_ministries.includes(m.id)} onChange={(e) => {
-                            if (e.target.checked) setFormData({...formData, target_ministries: [...formData.target_ministries, m.id]});
-                            else setFormData({...formData, target_ministries: formData.target_ministries.filter(id => id !== m.id)});
-                          }} className="rounded border-slate-300" /> {m.name}
-                        </label>
-                      ))}
-                    </div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Video URL (e.g. YouTube link)</label>
+                    <input type="url" value={formData.video_url} onChange={e => setFormData({...formData, video_url: e.target.value})} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400" />
                   </div>
-                </div>
-              ) : null}
+                )}
 
-              {formData.type === 'video' && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Video URL (e.g. YouTube link)</label>
-                  <input type="url" value={formData.video_url} onChange={e => setFormData({...formData, video_url: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400" />
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Announcement Content</label>
+                  <textarea
+                    required
+                    rows="5"
+                    placeholder="Write your announcement message here, or use the AI Smart Drafter above..."
+                    value={formData.content}
+                    onChange={e => setFormData({...formData, content: e.target.value})}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 leading-relaxed"
+                  />
                 </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Content</label>
-                <textarea required rows="4" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-400"></textarea>
               </div>
 
-              <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-lg">Cancel</button>
-                <button type="submit" disabled={loading} className="btn-primary py-2 px-5 disabled:opacity-70">{loading ? 'Publishing...' : 'Publish'}</button>
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-white border border-slate-200 rounded-lg transition-colors">Cancel</button>
+                <button type="submit" disabled={loading} className="btn-primary py-2 px-6 disabled:opacity-70">{loading ? 'Publishing...' : 'Publish Announcement'}</button>
               </div>
             </form>
           </div>

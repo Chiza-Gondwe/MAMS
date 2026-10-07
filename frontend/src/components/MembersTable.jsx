@@ -787,26 +787,26 @@ export default function MembersTable() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Section</label>
+                  <label className="block text-xs text-slate-500 mb-1">{user?.org_type === 'PTA' ? 'Class' : 'Section'}</label>
                   <select 
                     value={formData.section_id} 
                     onChange={e => setFormData({...formData, section_id: e.target.value})} 
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                   >
-                    <option value="">-- Select section --</option>
+                    <option value="">{user?.org_type === 'PTA' ? '-- Select class --' : '-- Select section --'}</option>
                     {Array.isArray(sections) && sections.map(section => (
                       <option key={section.id} value={section.id}>{section.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Zone</label>
+                  <label className="block text-xs text-slate-500 mb-1">{user?.org_type === 'PTA' ? 'Grade' : 'Zone'}</label>
                   <select 
                     value={formData.zone_id} 
                     onChange={e => setFormData({...formData, zone_id: e.target.value})} 
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                   >
-                    <option value="">-- Select zone --</option>
+                    <option value="">{user?.org_type === 'PTA' ? '-- Select grade --' : '-- Select zone --'}</option>
                     {Array.isArray(zones) && zones.map(zone => (
                       <option key={zone.id} value={zone.id}>{zone.name}</option>
                     ))}
@@ -830,11 +830,11 @@ export default function MembersTable() {
                     onChange={e => setFormData({...formData, role: e.target.value})} 
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                   >
-                    <option value="member">Member</option>
-                    {user?.org_type === 'PTA' && <option value="pta">PTA</option>}
-                    <option value="group_leader">Group Leader</option>
-                    {user?.role !== 'section_admin' && <option value="section_admin">Section Leader</option>}
-                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">Zone Leader</option>}
+                    <option value="member">{user?.org_type === 'PTA' ? 'Parent / Student' : 'Member'}</option>
+                    {user?.org_type === 'PTA' && <option value="pta">PTA Official</option>}
+                    <option value="group_leader">{user?.org_type === 'PTA' ? 'Committee Leader' : 'Group Leader'}</option>
+                    {user?.role !== 'section_admin' && <option value="section_admin">{user?.org_type === 'PTA' ? 'Class Teacher / Rep' : 'Section Leader'}</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">{user?.org_type === 'PTA' ? 'Grade Head' : 'Zone Leader'}</option>}
                     {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="admin">Admin</option>}
                   </select>
                 </div>
@@ -854,7 +854,7 @@ export default function MembersTable() {
 
               {ministries.length > 0 && (
                 <div>
-                  <label className="block text-xs text-slate-500 mb-2">Ministries / Groups</label>
+                  <label className="block text-xs text-slate-500 mb-2">{user?.org_type === 'PTA' ? 'Committees & Activities' : 'Ministries / Groups'}</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border border-slate-200 rounded-md bg-slate-50">
                     {Array.isArray(ministries) && ministries.map(ministry => (
                       <label key={ministry.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200">
@@ -969,33 +969,33 @@ export default function MembersTable() {
                   onChange={e => setFormData({...formData, gender: e.target.value})} 
                   className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                 >
-                  <option value="">Not Specified</option>
+                  <option value="">-- Select Gender --</option>
                   <option value="M">Male</option>
                   <option value="F">Female</option>
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Section</label>
+                  <label className="block text-xs text-slate-500 mb-1">{user?.org_type === 'PTA' ? 'Class' : 'Section'}</label>
                   <select 
                     value={formData.section_id} 
                     onChange={e => setFormData({...formData, section_id: e.target.value})} 
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                   >
-                    <option value="">-- Select section --</option>
+                    <option value="">{user?.org_type === 'PTA' ? '-- Select class --' : '-- Select section --'}</option>
                     {Array.isArray(sections) && sections.map(section => (
                       <option key={section.id} value={section.id}>{section.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Zone</label>
+                  <label className="block text-xs text-slate-500 mb-1">{user?.org_type === 'PTA' ? 'Grade' : 'Zone'}</label>
                   <select 
                     value={formData.zone_id} 
                     onChange={e => setFormData({...formData, zone_id: e.target.value})} 
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                   >
-                    <option value="">-- Select zone --</option>
+                    <option value="">{user?.org_type === 'PTA' ? '-- Select grade --' : '-- Select zone --'}</option>
                     {Array.isArray(zones) && zones.map(zone => (
                       <option key={zone.id} value={zone.id}>{zone.name}</option>
                     ))}
@@ -1019,11 +1019,11 @@ export default function MembersTable() {
                     onChange={e => setFormData({...formData, role: e.target.value})} 
                     className="w-full px-3 py-1.5 border border-slate-200 rounded-md text-sm focus:outline-none focus:border-sky-300"
                   >
-                    <option value="member">Member</option>
-                    {user?.org_type === 'PTA' && <option value="pta">PTA</option>}
-                    <option value="group_leader">Group Leader</option>
-                    {user?.role !== 'section_admin' && <option value="section_admin">Section Leader</option>}
-                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">Zone Leader</option>}
+                    <option value="member">{user?.org_type === 'PTA' ? 'Parent / Student' : 'Member'}</option>
+                    {user?.org_type === 'PTA' && <option value="pta">PTA Official</option>}
+                    <option value="group_leader">{user?.org_type === 'PTA' ? 'Committee Leader' : 'Group Leader'}</option>
+                    {user?.role !== 'section_admin' && <option value="section_admin">{user?.org_type === 'PTA' ? 'Class Teacher / Rep' : 'Section Leader'}</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">{user?.org_type === 'PTA' ? 'Grade Head' : 'Zone Leader'}</option>}
                     {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="admin">Admin</option>}
                   </select>
                 </div>
@@ -1043,7 +1043,7 @@ export default function MembersTable() {
 
               {ministries.length > 0 && (
                 <div>
-                  <label className="block text-xs text-slate-500 mb-2">Ministries / Groups</label>
+                  <label className="block text-xs text-slate-500 mb-2">{user?.org_type === 'PTA' ? 'Committees & Activities' : 'Ministries / Groups'}</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border border-slate-200 rounded-md bg-slate-50">
                     {Array.isArray(ministries) && ministries.map(ministry => (
                       <label key={ministry.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200">
@@ -1147,7 +1147,7 @@ export default function MembersTable() {
               <div className="pb-3 border-b border-slate-100">
                 <p className="text-xs text-slate-400">Role</p>
                 <p className="text-sm text-slate-600 capitalize">
-                  {selectedMember.role === 'pta' ? 'PTA' : selectedMember.role === 'section_admin' ? 'Section Leader' : selectedMember.role === 'zone_admin' ? 'Zone Leader' : selectedMember.role || 'member'}
+                  {selectedMember.role === 'pta' ? 'PTA Official' : selectedMember.role === 'section_admin' ? (user?.org_type === 'PTA' ? 'Class Teacher / Rep' : 'Section Leader') : selectedMember.role === 'zone_admin' ? (user?.org_type === 'PTA' ? 'Grade Head' : 'Zone Leader') : selectedMember.role === 'group_leader' ? (user?.org_type === 'PTA' ? 'Committee Leader' : 'Group Leader') : selectedMember.role || 'member'}
                 </p>
               </div>
               
@@ -1168,7 +1168,7 @@ export default function MembersTable() {
               </div>
               
               <div className="pb-3 border-b border-slate-100">
-                <p className="text-xs text-slate-400">Ministries / Groups</p>
+                <p className="text-xs text-slate-400">{user?.org_type === 'PTA' ? 'Committees & Activities' : 'Ministries / Groups'}</p>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {selectedMember.ministries_details && selectedMember.ministries_details.length > 0 ? (
                     selectedMember.ministries_details.map(m => (
@@ -1184,11 +1184,11 @@ export default function MembersTable() {
 
               <div className="grid grid-cols-2 gap-4 mt-3">
                 <div>
-                  <p className="text-xs text-slate-400">Section</p>
+                  <p className="text-xs text-slate-400">{user?.org_type === 'PTA' ? 'Class' : 'Section'}</p>
                   <p className="text-sm text-slate-600">{selectedMember.section_name || 'Not assigned'}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-400">Zone</p>
+                  <p className="text-xs text-slate-400">{user?.org_type === 'PTA' ? 'Grade' : 'Zone'}</p>
                   <p className="text-sm text-slate-600">{selectedMember.zone_name || 'Not assigned'}</p>
                 </div>
               </div>

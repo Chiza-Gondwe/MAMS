@@ -76,6 +76,7 @@ class PublicChurchViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
         email = (request.data.get('email') or '').strip()
         password = request.data.get('password')
         phone = (request.data.get('phone') or '').strip()
+        gender = (request.data.get('gender') or '').strip().upper()
         city = (request.data.get('city') or 'LUSAKA').strip().upper()
         
         if not all([church_name, first_name, last_name, email, phone, password]):
@@ -122,6 +123,7 @@ class PublicChurchViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
                     last_name=last_name,
                     email=email,
                     phone_number=phone,
+                    gender=gender if gender in ('M', 'F') else None,
                     role='admin',
                     status='active',
                     organization=org,

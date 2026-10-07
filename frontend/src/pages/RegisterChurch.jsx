@@ -13,6 +13,7 @@ export default function RegisterChurch() {
     last_name: '',
     email: '',
     phone: '',
+    gender: '',
     password: ''
   });
   
@@ -146,7 +147,9 @@ export default function RegisterChurch() {
             <Building2 className="w-6 h-6 text-sky-600" />
           </div>
           <h1 className="text-3xl font-bold bg-gradient-to-br from-sky-800 to-indigo-900 bg-clip-text text-transparent tracking-tight">Register Organization</h1>
-          <p className="text-sm text-slate-600 mt-2 font-medium">Create a new workspace for your congregation</p>
+          <p className="text-sm text-slate-600 mt-2 font-medium">
+            {formData.org_type === 'PTA' ? 'Create a new workspace for your school / PTA' : 'Create a new workspace for your congregation'}
+          </p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -266,19 +269,35 @@ export default function RegisterChurch() {
               </div>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  name="phone"
-                  value={formData.phone}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="e.g. 0971234567"
+                    className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Gender</label>
+                <select
+                  name="gender"
+                  value={formData.gender}
                   onChange={handleChange}
-                  placeholder="e.g. 0971234567"
-                  className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 bg-white"
                   required
-                />
+                >
+                  <option value="">-- Select Gender --</option>
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                </select>
               </div>
             </div>
             

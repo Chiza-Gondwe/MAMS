@@ -67,12 +67,24 @@ The project is deployed and running live in the cloud—both the Web Portal and 
 
 ```text
 MAMS/
-├── core/                   # Main Django app (models, API views, permissions, signals, seeders)
-├── mams/                   # Project settings, JWT auth, SPA routing, email service, APK download endpoint
-├── frontend/               # React + Vite web application (Admin, Section Leader & Member portals)
-├── mams_mobile/            # Flutter Android application (Online + Offline hybrid mode)
-├── MAMS_Mobile_Release.apk # Compiled arm64 release APK served directly from the web portal
-└── HOW_TO_RUN_MAMS.md      # Quick reference guide, demo logins & deployment commands
+├── mams/                       # Project settings, 5-identifier JWT auth, SPA routing, APK download endpoint
+├── church_profile/             # Multi-tenant Organizations, Analytics, and Statistical AI Engine (ai_engine.py)
+├── members/                    # Members, Zones/Grades, Sections/Classes, Ministries, RBAC & Zambian Geocoder
+├── attendance/                 # QR Attendance Sessions, Records & First-Visitor detection
+├── announcements/              # Targeted Text & Video Announcements with priority levels
+├── finances/                   # Multi-tenant Ledger Accounts, Tithes/Offerings & PTA Levy tracking
+├── chat/                       # Scoped Role-Based Group Chat Channels & Rich Media Messages
+├── events/                     # Calendar Events & RSVP Management
+├── sermons/                    # Sermon Archive & Media Links
+├── prayer/                     # Community Prayer Requests Wall
+├── school/                     # School PTA Classrooms & Student Profiles
+├── communications/             # Gmail SMTP Email Logs & WebPush Subscriptions
+├── frontend/                   # React 19 + Vite Web Portal (Admin, Leader & Member views)
+├── mams_mobile/                # Flutter Android Application (Online + Offline hybrid mode)
+├── database/                   # SQL schema definitions and backup fixtures
+├── deploy_pythonanywhere.sh    # One-command cloud setup & deployment script for PythonAnywhere
+├── publish_mobile_update.bat   # 1-click Flutter APK build & OTA version publisher
+└── MAMS_Mobile_Release.apk     # Compiled arm64 release APK served directly from the web portal
 ```
 
 ---

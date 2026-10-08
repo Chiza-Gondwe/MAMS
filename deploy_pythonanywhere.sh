@@ -6,14 +6,19 @@
 # ==============================================================================
 set -e
 
-echo "=== 1. Creating .env configuration ==="
-cat << 'EOF' > .env
+echo "=== 1. Checking .env configuration ==="
+if [ ! -f .env ]; then
+cat << EOF > .env
 DB_ENGINE=sqlite3
-SECRET_KEY=django-insecure-yk@hg90-k#-ft0-=rlxdo#z!t217q*q)$7ea&)-ojzdc1jk!l4
-EMAIL_HOST_USER=mamssystem996@gmail.com
-EMAIL_HOST_PASSWORD=rfwz maqc rggz inhw
-DEFAULT_FROM_EMAIL=MAMS Management System <mamssystem996@gmail.com>
+SECRET_KEY=${SECRET_KEY:-django-insecure-change-me-in-production}
+EMAIL_HOST_USER=${EMAIL_HOST_USER:-mamssystem996@gmail.com}
+EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-your-gmail-app-password}
+DEFAULT_FROM_EMAIL=MAMS Management System <${EMAIL_HOST_USER:-mamssystem996@gmail.com}>
 EOF
+echo "Created default .env template (update EMAIL_HOST_PASSWORD in .env if needed)."
+else
+echo "Existing .env found — keeping current environment configuration."
+fi
 
 echo "=== 2. Creating Python Virtual Environment (mams-venv) ==="
 python3 -m venv "$HOME/.virtualenvs/mams-venv"

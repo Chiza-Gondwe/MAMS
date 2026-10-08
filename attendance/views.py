@@ -58,11 +58,22 @@ class AttendanceSessionViewSet(BaseMultiTenantViewSet):
             return [IsMember()]
         return [IsAdmin()]
 
+    def _get_frontend_base_url(self):
+        from django.conf import settings
+        base_url = getattr(settings, 'FRONTEND_URL', None)
+        if base_url:
+            return str(base_url).rstrip('/')
+        if hasattr(self, 'request') and self.request:
+            origin = self.request.META.get('HTTP_ORIGIN')
+            if origin:
+                return origin.rstrip('/')
+        return 'https://mamszambia.pythonanywhere.com'
+
     def perform_create(self, serializer):
         session = serializer.save(organization=self.request.user.member_profile.organization)
         try:
             # Generate a clickable URL instead of raw text
-            qr_data = f"http://127.0.0.1:3000/scan/{session.id}"
+            qr_data = f"{self._get_frontend_base_url()}/scan/{session.id}"
             qr = qrcode.make(qr_data)
             buffer = io.BytesIO()
             qr.save(buffer, format='PNG')
@@ -172,7 +183,7 @@ class AttendanceSessionViewSet(BaseMultiTenantViewSet):
                 date=today
             )
             try:
-                qr_data = f"http://127.0.0.1:3000/scan/{session.id}"
+                qr_data = f"{self._get_frontend_base_url()}/scan/{session.id}"
                 qr = qrcode.make(qr_data)
                 buffer = io.BytesIO()
                 qr.save(buffer, format='PNG')
@@ -288,16 +299,25 @@ class AttendanceRecordViewSet(BaseMultiTenantViewSet):
     filterset_fields = ['session', 'member']
 
     def get_queryset(self):
-        queryset = AttendanceRecord.objects.all().order_by('-scanned_at')
         user = self.request.user
         if not user.is_authenticated:
-            return queryset.none()
+            return AttendanceRecord.objects.none()
             
         profile = getattr(user, 'member_profile', None)
         if not profile:
-            return queryset.none()
-            
-        if profile.role in ['superadmin', 'admin', 'section_leader', 'group_leader', 'pta']:
+            return AttendanceRecord.objects.none()
+
+        if profile.role == 'superadmin':
+            return AttendanceRecord.objects.all().order_by('-scanned_at')
+
+        if not profile.organization:
+            return AttendanceRecord.objects.none()
+
+        queryset = AttendanceRecord.objects.filter(
+            session__organization=profile.organization
+        ).order_by('-scanned_at')
+
+        if profile.role in ['admin', 'section_admin', 'section_leader', 'zone_admin', 'group_leader', 'pta']:
             return queryset
         return queryset.filter(member=profile)
 

@@ -217,7 +217,16 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = User.objects.all()
+        user = self.request.user
+        profile = getattr(user, 'member_profile', None)
+        if not user.is_authenticated or not profile:
+            return User.objects.none()
+        if profile.role == 'superadmin':
+            queryset = User.objects.all()
+        elif profile.organization:
+            queryset = User.objects.filter(member_profile__organization=profile.organization)
+        else:
+            return User.objects.none()
         search_email = self.request.query_params.get('search', None)
         if search_email:
             queryset = queryset.filter(email__icontains=search_email)

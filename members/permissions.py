@@ -30,7 +30,7 @@ class IsSectionLeader(BasePermission):
             return False
         if not hasattr(request.user, 'member_profile'):
             return False
-        return request.user.member_profile.role in ['superadmin', 'admin', 'section_leader']
+        return request.user.member_profile.role in ['superadmin', 'admin', 'section_admin', 'section_leader']
 
 class IsGroupLeader(BasePermission):
     def has_permission(self, request, view):

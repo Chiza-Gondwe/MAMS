@@ -8,3 +8,9 @@ class OrganizationSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'smtp_password': {'write_only': True}
         }
+
+class PublicOrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ['id', 'org_code', 'name', 'org_type', 'city', 'address', 'phone', 'email']
+

@@ -149,13 +149,18 @@ class ApiService {
       );
       await _secureStorage.write(key: 'vault_password', value: password);
       await _secureStorage.write(key: 'vault_enabled', value: 'true');
+      await _secureStorage.write(
+        key: 'offline_username',
+        value: usernameOrEmail.trim().toLowerCase(),
+      );
+      await _secureStorage.write(key: 'offline_password', value: password);
     } catch (e) {
       debugPrint('Failed to save vault credentials: $e');
     }
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('offline_username', usernameOrEmail.trim().toLowerCase());
-      await prefs.setString('offline_password', password);
+      await prefs.remove('offline_password');
     } catch (_) {}
   }
 
@@ -169,17 +174,14 @@ class ApiService {
           return {'username': username, 'password': password};
         }
       }
+      final offUser = await _secureStorage.read(key: 'offline_username');
+      final offPass = await _secureStorage.read(key: 'offline_password');
+      if (offUser != null && offPass != null && offUser.isNotEmpty) {
+        return {'username': offUser, 'password': offPass};
+      }
     } catch (e) {
       debugPrint('Failed to read vault credentials: $e');
     }
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final u = prefs.getString('offline_username');
-      final p = prefs.getString('offline_password');
-      if (u != null && p != null && u.isNotEmpty) {
-        return {'username': u, 'password': p};
-      }
-    } catch (_) {}
     return null;
   }
 
@@ -227,6 +229,14 @@ class ApiService {
         await saveTokens(data['access'], data['refresh'] ?? '');
         if (saveToVault) {
           await saveVaultCredentials(usernameOrEmail, password);
+        } else {
+          try {
+            await _secureStorage.write(
+              key: 'offline_username',
+              value: usernameOrEmail.trim().toLowerCase(),
+            );
+            await _secureStorage.write(key: 'offline_password', value: password);
+          } catch (_) {}
         }
         await syncOfflineAttendanceQueue();
         return {'success': true, 'data': data, 'offline': false};
@@ -247,7 +257,7 @@ class ApiService {
       final savedUser = (creds?['username'] ?? prefs.getString('offline_username') ?? '')
           .trim()
           .toLowerCase();
-      final savedPass = creds?['password'] ?? prefs.getString('offline_password') ?? '';
+      final savedPass = creds?['password'] ?? '';
       final backupToken =
           prefs.getString('access_token') ?? prefs.getString('offline_backup_token');
 

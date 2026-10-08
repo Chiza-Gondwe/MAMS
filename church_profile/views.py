@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Organization
-from .serializers import OrganizationSerializer
+from .serializers import OrganizationSerializer, PublicOrganizationSerializer
 from members.permissions import IsAdmin
 
 class OrganizationViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet):
@@ -34,7 +34,7 @@ class SuperadminOrganizationViewSet(viewsets.ModelViewSet):
 
 class PublicChurchViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Organization.objects.all()
-    serializer_class = OrganizationSerializer
+    serializer_class = PublicOrganizationSerializer
     permission_classes = [AllowAny]
 
     @action(detail=False, methods=['get'], url_path='verify-code')
@@ -54,7 +54,7 @@ class PublicChurchViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
             ministries = Ministry.objects.filter(organization=org)
             
             return Response({
-                'organization': OrganizationSerializer(org).data,
+                'organization': PublicOrganizationSerializer(org).data,
                 'zones': ZoneSerializer(zones, many=True).data,
                 'sections': SectionSerializer(sections, many=True).data,
                 'ministries': MinistrySerializer(ministries, many=True).data

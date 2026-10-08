@@ -192,3 +192,64 @@ class MemberAPITest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn('member', response.data)
         self.assertEqual(response.data['member']['email'], 'bob@example.com')
+
+    def test_register_member_auto_links_parent_zone_and_holding_tank(self):
+        from members.models import Zone, Section
+        zone = Zone.objects.create(name='Grade 10', organization=self.org)
+        section = Section.objects.create(name='Grade 10A', zone=zone, organization=self.org)
+
+        # 1. Member selecting a Section should automatically inherit parent Zone and become 'active'
+        data_with_section = {
+            'first_name': 'Chanda',
+            'last_name': 'Mwamba',
+            'email': 'chanda@example.com',
+            'phone_number': '0976543210',
+            'gender': 'F',
+            'section_id': section.id,
+            'password': 'chandapassword123',
+            'organization': self.org.id,
+        }
+        res1 = self.client.post(reverse('register_member'), data=data_with_section)
+        self.assertEqual(res1.status_code, status.HTTP_201_CREATED)
+        m1 = Member.objects.get(email='chanda@example.com')
+        self.assertEqual(m1.status, 'active')
+        self.assertEqual(m1.section, section)
+        self.assertEqual(m1.zone, zone)
+        self.assertEqual(m1.gender, 'F')
+
+        # 2. Member without a Section should enter 'pending_review' (Holding Tank)
+        data_without_section = {
+            'first_name': 'Mutale',
+            'last_name': 'Banda',
+            'email': 'mutale@example.com',
+            'phone_number': '0966543210',
+            'gender': 'M',
+            'password': 'mutalepassword123',
+            'organization': self.org.id,
+        }
+        res2 = self.client.post(reverse('register_member'), data=data_without_section)
+        self.assertEqual(res2.status_code, status.HTTP_201_CREATED)
+        m2 = Member.objects.get(email='mutale@example.com')
+        self.assertEqual(m2.status, 'pending_review')
+        self.assertIsNone(m2.section)
+
+    def test_register_organization_saves_admin_gender(self):
+        payload = {
+            'church_name': 'Lusaka High School PTA',
+            'org_type': 'PTA',
+            'city': 'LUSAKA',
+            'first_name': 'Grace',
+            'last_name': 'Tembo',
+            'gender': 'F',
+            'email': 'grace.tembo@lusakahigh.edu.zm',
+            'phone': '0977112233',
+            'password': 'StrongPassword123!',
+        }
+        response = self.client.post('/api/churches/register/', data=payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        admin_member = Member.objects.get(email='grace.tembo@lusakahigh.edu.zm')
+        self.assertEqual(admin_member.gender, 'F')
+        self.assertEqual(admin_member.role, 'admin')
+        self.assertEqual(admin_member.status, 'active')
+        self.assertTrue(admin_member.organization.org_code.startswith('LUS-P-'))
+

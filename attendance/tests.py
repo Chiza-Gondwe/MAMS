@@ -86,7 +86,7 @@ class AttendanceSessionAPITest(APITestCase):
         # Second check-in should not fail, but indicate already recorded
         response = self.client.post(url, {})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['message'], 'Attendance already recorded')
+        self.assertEqual(response.data['message'], f'{self.member_member} is already checked in for {self.session.title}!')
 
     def test_member_cannot_scan_for_others(self):
         self.client.force_authenticate(user=self.member_user)
@@ -110,7 +110,7 @@ class AttendanceSessionAPITest(APITestCase):
         
         response = self.client.post(url, {})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(response.data['error'], 'Inactive member cannot check in')
+        self.assertEqual(response.data['error'], f'{self.inactive_member} is currently {self.inactive_member.status} and cannot check in.')
 
 
 class AttendanceRecordAPITest(APITestCase):

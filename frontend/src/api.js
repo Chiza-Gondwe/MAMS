@@ -63,7 +63,18 @@ const request = async (endpoint, options = {}) => {
   // Handle non-2xx responses
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw { status: response.status, data: errorData, message: errorData.detail || errorData.error || 'Request failed' };
+    let msg = errorData.detail || errorData.error || errorData.message;
+    if (!msg && typeof errorData === 'object' && errorData !== null) {
+      const keys = Object.keys(errorData);
+      if (keys.length > 0) {
+        const firstKey = keys[0];
+        const val = errorData[firstKey];
+        const firstVal = Array.isArray(val) ? val.join(' ') : String(val);
+        const label = firstKey.replace(/_/g, ' ');
+        msg = `${label.charAt(0).toUpperCase() + label.slice(1)}: ${firstVal}`;
+      }
+    }
+    throw { status: response.status, data: errorData, message: msg || 'Request failed' };
   }
   
   // DELETE requests may return 204 No Content

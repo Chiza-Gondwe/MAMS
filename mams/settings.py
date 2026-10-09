@@ -51,11 +51,9 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle'
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '10/minute',  # Protects public endpoints like /login and /register from brute force
-        'user': '1000/day'    # Protects authenticated endpoints from abuse
+        'anon': '60/minute',  # Protects public endpoints from brute-force attempts
     },
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,

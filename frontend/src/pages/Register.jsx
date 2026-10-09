@@ -105,11 +105,14 @@ export default function Register() {
 
       navigate(`/verify-email?email=${encodeURIComponent(formData.email)}`);
     } catch (err) {
-      if (err.response?.data) {
-        console.log("Django Error Details:", err.response.data);
-        const firstKey = Object.keys(err.response.data)[0];
-        const errorMsg = err.response.data[firstKey];
-        setError(`${firstKey}: ${Array.isArray(errorMsg) ? errorMsg[0] : errorMsg}`);
+      const errData = err.data || err.response?.data;
+      if (err.message && err.message !== 'Request failed') {
+        setError(err.message);
+      } else if (errData && typeof errData === 'object') {
+        const firstKey = Object.keys(errData)[0];
+        const errorMsg = errData[firstKey];
+        const label = firstKey.replace(/_/g, ' ');
+        setError(`${label.charAt(0).toUpperCase() + label.slice(1)}: ${Array.isArray(errorMsg) ? errorMsg.join(' ') : errorMsg}`);
       } else {
         setError('Failed to register. Please check your input.');
       }

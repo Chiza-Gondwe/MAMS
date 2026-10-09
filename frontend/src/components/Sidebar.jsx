@@ -1,5 +1,5 @@
 import { NavLink, Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, Megaphone, BarChart3, Settings, Mail, CalendarDays, BookOpen, Building2, Banknote, Map, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Megaphone, BarChart3, Settings, Mail, CalendarDays, BookOpen, Building2, Banknote, Map, MessageSquare, X } from 'lucide-react';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -23,7 +23,7 @@ const navItems = [
 
 import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen = false, onClose = () => {} }) {
   const { user } = useAuth();
   const activeUser = user || { username: 'Admin', role: 'admin' };
 
@@ -89,11 +89,23 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-64 flex-shrink-0 bg-white/60 backdrop-blur-2xl flex flex-col border-r border-white/40 shadow-[4px_0_24px_rgba(0,0,0,0.02)] relative z-20">
-      <div className="px-6 py-8 relative z-10 shrink-0">
-        <h1 className="text-2xl font-bold bg-gradient-to-br from-sky-700 to-indigo-800 bg-clip-text text-transparent tracking-tight leading-tight">
+    <aside className={`
+      fixed inset-y-0 left-0 z-50 w-72 bg-white/95 md:bg-white/60 backdrop-blur-2xl flex flex-col border-r border-slate-200/80 md:border-white/40 shadow-2xl md:shadow-[4px_0_24px_rgba(0,0,0,0.02)]
+      transform transition-transform duration-300 ease-in-out
+      md:static md:translate-x-0 md:w-64 md:flex-shrink-0
+      ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+    `}>
+      <div className="px-6 py-6 md:py-8 relative z-10 shrink-0 flex items-center justify-between">
+        <h1 className="text-2xl font-bold bg-gradient-to-br from-sky-700 to-indigo-800 bg-clip-text text-transparent tracking-tight leading-tight truncate">
           {activeUser.org_name ? activeUser.org_name : 'MAMS'}
         </h1>
+        <button
+          onClick={onClose}
+          className="md:hidden p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          title="Close menu"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
       <nav className="px-3 space-y-1 flex-1 relative z-10 overflow-y-auto overflow-x-hidden pb-4">
         {displayNavItems.map((item) => (
@@ -101,6 +113,7 @@ export default function Sidebar() {
             key={item.path}
             to={item.path}
             end={item.path === '/dashboard'}
+            onClick={onClose}
             title={`Navigate to ${item.label}`}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 group ${
@@ -121,7 +134,11 @@ export default function Sidebar() {
       </nav>
       
       <div className="p-4 mt-auto border-t border-slate-200/50 shrink-0 relative z-10 bg-white/40 backdrop-blur-md">
-        <Link to="/dashboard/profile" className="flex items-center gap-3 w-full group cursor-pointer hover:bg-slate-100 p-2 -mx-2 rounded-lg transition-colors">
+        <Link 
+          to="/dashboard/profile" 
+          onClick={onClose}
+          className="flex items-center gap-3 w-full group cursor-pointer hover:bg-slate-100 p-2 -mx-2 rounded-lg transition-colors"
+        >
           {activeUser?.profile_picture ? (
             <img src={activeUser.profile_picture.replace(/^https?:\/\/[^\/]+/, '')} alt="Profile" className="w-10 h-10 rounded-full object-cover shadow-inner shadow-black/20" />
           ) : (

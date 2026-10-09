@@ -65,7 +65,12 @@ export default function DashboardLayout() {
   const { user } = useAuth();
   const activeUser = user || { username: 'Admin', role: 'admin' };
   const [showJoinQRModal, setShowJoinQRModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [orgSettings, setOrgSettings] = useState({ org_code: '', name: '', org_type: '' });
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     api.getSettings()
@@ -129,11 +134,18 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-transparent animate-fade-in-up">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar onSearch={handleSearch} />
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+    <div className="flex h-screen bg-transparent animate-fade-in-up relative overflow-hidden">
+      {/* Mobile Backdrop Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <Topbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} onSearch={handleSearch} />
+        <main className="flex-1 overflow-y-auto px-4 py-5 md:px-8 md:py-8">
           {showJoinQRModal && dynamicOrgCode && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
               <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 text-center border border-slate-200">
@@ -179,7 +191,7 @@ export default function DashboardLayout() {
                     <p className="text-sm text-slate-500 mt-1">Here's what's happening in your {isPTA ? 'school / PTA' : 'ministry'} today.</p>
                   </div>
                   {activeUser.role !== 'member' && dynamicOrgCode && (
-                    <div className="flex items-center gap-3 bg-white/80 backdrop-blur-md border border-sky-200/80 px-4 py-2.5 rounded-xl shadow-sm">
+                    <div className="flex items-center gap-3 bg-white/80 backdrop-blur-md border border-sky-200/80 px-4 py-2.5 rounded-xl shadow-sm w-full sm:w-auto justify-between sm:justify-start">
                       <div className="text-right">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Join Code</p>
                         <p className="text-sm font-mono font-bold text-sky-700 tracking-wider">{dynamicOrgCode}</p>

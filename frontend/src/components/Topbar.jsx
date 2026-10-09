@@ -1,11 +1,11 @@
 // components/Topbar.jsx
-import { Search, Bell, User, ChevronDown, Megaphone, MessageSquare, UserCheck } from 'lucide-react';
+import { Search, Bell, User, ChevronDown, Megaphone, MessageSquare, UserCheck, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 
-export default function Topbar({ onSearch }) {
+export default function Topbar({ onToggleSidebar, onSearch }) {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -218,63 +218,74 @@ export default function Topbar({ onSearch }) {
   };
 
   return (
-    <header className="h-16 border-b border-white/40 bg-white/60 backdrop-blur-md flex items-center justify-between px-6 z-30 relative shadow-[0_4px_30px_rgba(0,0,0,0.03)]">
-      <div className="relative w-96" ref={searchRef}>
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          value={searchQuery}
-          placeholder="Search members, announcements..."
-          onChange={handleSearchChange}
-          className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:bg-white transition-colors"
-          title="Search the platform"
-        />
-        
-        {searchResults && (
-          <div className="absolute top-full left-0 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
-            {isSearching && (
-              <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
-            )}
-            
-            {!isSearching && searchResults.members.length === 0 && searchResults.announcements.length === 0 && (
-              <div className="p-4 text-center text-sm text-slate-500">No results found for "{searchQuery}"</div>
-            )}
+    <header className="h-16 border-b border-white/40 bg-white/60 backdrop-blur-md flex items-center justify-between px-4 md:px-6 z-30 relative shadow-[0_4px_30px_rgba(0,0,0,0.03)] gap-2">
+      <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+        <button
+          onClick={onToggleSidebar}
+          className="md:hidden p-2 -ml-1 rounded-xl text-slate-600 hover:text-indigo-600 hover:bg-white/80 transition-colors shrink-0"
+          title="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <div className="relative w-full max-w-xs md:max-w-sm hidden sm:block" ref={searchRef}>
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            placeholder="Search members, announcements..."
+            onChange={handleSearchChange}
+            className="w-full pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 focus:bg-white transition-colors"
+            title="Search the platform"
+          />
+          {searchResults && (
+            <div className="absolute top-full left-0 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-50">
+              {isSearching && (
+                <div className="p-4 text-center text-sm text-slate-500">Searching...</div>
+              )}
+              
+              {!isSearching && searchResults.members.length === 0 && searchResults.announcements.length === 0 && (
+                <div className="p-4 text-center text-sm text-slate-500">No results found for "{searchQuery}"</div>
+              )}
 
-            {!isSearching && searchResults.members.length > 0 && (
-              <div>
-                <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase">Members</div>
-                {searchResults.members.map(m => (
-                  <div key={m.id} className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 font-bold text-xs shrink-0">
-                      {m.first_name[0]}{m.last_name[0]}
+              {!isSearching && searchResults.members.length > 0 && (
+                <div>
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase">Members</div>
+                  {searchResults.members.map(m => (
+                    <div key={m.id} className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 font-bold text-xs shrink-0">
+                        {m.first_name[0]}{m.last_name[0]}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{m.first_name} {m.last_name}</p>
+                        <p className="text-xs text-slate-500">{m.email || m.phone || 'No contact info'}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-800">{m.first_name} {m.last_name}</p>
-                      <p className="text-xs text-slate-500">{m.email || m.phone || 'No contact info'}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            {!isSearching && searchResults.announcements.length > 0 && (
-              <div>
-                <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 border-t text-xs font-semibold text-slate-500 uppercase">Announcements</div>
-                {searchResults.announcements.map(a => (
-                  <div key={a.id} className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors flex items-center gap-3">
-                    <div className="p-1.5 rounded-md bg-indigo-50 text-indigo-600 shrink-0">
-                      <Megaphone className="w-4 h-4" />
+              {!isSearching && searchResults.announcements.length > 0 && (
+                <div>
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 border-t text-xs font-semibold text-slate-500 uppercase">Announcements</div>
+                  {searchResults.announcements.map(a => (
+                    <div key={a.id} className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors flex items-center gap-3">
+                      <div className="p-1.5 rounded-md bg-indigo-50 text-indigo-600 shrink-0">
+                        <Megaphone className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-800 line-clamp-1">{a.title}</p>
+                        <p className="text-xs text-slate-500 capitalize">{a.announcement_type}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-800 line-clamp-1">{a.title}</p>
-                      <p className="text-xs text-slate-500 capitalize">{a.announcement_type}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="sm:hidden font-bold text-slate-800 text-sm truncate">
+          {user?.org_name || 'MAMS'}
+        </div>
       </div>
       
       <div className="flex items-center gap-4">
@@ -356,7 +367,7 @@ export default function Topbar({ onSearch }) {
             ) : (
               <User className="w-4 h-4" />
             )}
-            <span className="font-medium">{user?.first_name || user?.username || 'Admin'}</span>
+            <span className="font-medium hidden sm:inline">{user?.first_name || user?.username || 'Admin'}</span>
             <ChevronDown className="w-3 h-3" />
           </button>
           {showUserDropdown && (

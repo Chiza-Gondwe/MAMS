@@ -167,13 +167,13 @@ class MobileDashboardAPIView(APIView):
         start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         contributions = Donation.objects.filter(
             organization=org, 
-            status='COMPLETED',
+            status__iexact='completed',
             created_at__gte=start_of_month
         ).aggregate(total=Sum('amount'))['total']
         if not contributions:
             contributions = Donation.objects.filter(
                 organization=org,
-                status='COMPLETED',
+                status__iexact='completed',
             ).aggregate(total=Sum('amount'))['total'] or 0
 
         active_session_title = None

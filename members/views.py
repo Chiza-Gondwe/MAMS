@@ -294,7 +294,10 @@ class MemberViewSet(BaseMultiTenantViewSet):
             if not member.user:
                 email = member.email
                 username = email[:150]
-                password = "password123"
+                import secrets
+                import string
+                alphabet = string.ascii_letters + string.digits
+                password = ''.join(secrets.choice(alphabet) for _ in range(8))
                 
                 # Check if user with this email already exists
                 user = User.objects.filter(email=email).first()

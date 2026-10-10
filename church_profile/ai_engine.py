@@ -195,7 +195,7 @@ def compute_ai_insights(org, request=None):
     monthly_donations = list(
         Donation.objects.filter(
             organization=org,
-            status='COMPLETED',
+            status__iexact='completed',
             date__gte=one_year_ago,
         )
         .annotate(month=TruncMonth('date'))
@@ -207,7 +207,7 @@ def compute_ai_insights(org, request=None):
     if not monthly_totals:
         all_completed = Donation.objects.filter(
             organization=org,
-            status='COMPLETED',
+            status__iexact='completed',
         ).aggregate(total=Sum('amount'))['total']
         if all_completed:
             monthly_totals = [float(all_completed)]

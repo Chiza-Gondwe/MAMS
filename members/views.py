@@ -409,6 +409,17 @@ class MemberViewSet(BaseMultiTenantViewSet):
         
         return Response({'message': f'Successfully deleted {deleted_count} members.'}, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def approve(self, request, pk=None):
+        member = self.get_object()
+        member.status = 'active'
+        member.save(update_fields=['status'])
+        serializer = self.get_serializer(member)
+        return Response({
+            'message': f'Member {member.first_name} {member.last_name} approved successfully.',
+            'member': serializer.data
+        }, status=status.HTTP_200_OK)
+
 from church_profile.models import Organization
 from members.permissions import IsSuperAdmin
 

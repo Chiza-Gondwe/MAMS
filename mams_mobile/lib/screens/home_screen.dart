@@ -59,8 +59,77 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _launchUpdateDownload() async {
     final urlStr = (_updateInfo?['download_url'] ?? 'https://mamszambia.pythonanywhere.com/api/download-app/').toString();
     final uri = Uri.tryParse(urlStr);
-    if (uri != null) {
+    if (uri == null) return;
+
+    double progress = 0.0;
+    String statusText = 'Starting download...';
+
+    // Show clean in-app download progress modal
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: const [
+                  Icon(Icons.system_update_rounded, color: Color(0xFF059669)),
+                  SizedBox(width: 10),
+                  Text('Updating MAMS', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(statusText, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 14),
+                  LinearProgressIndicator(
+                    value: progress > 0 ? progress : null,
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF059669)),
+                  ),
+                  const SizedBox(height: 8),
+                  if (progress > 0)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        '${(progress * 100).toStringAsFixed(0)}%',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    try {
+      // Launch external browser / download manager to fetch and prompt install immediately
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Downloading update! Tap the completed notification to finish.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+      }
     }
   }
 

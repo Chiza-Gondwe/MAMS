@@ -33,7 +33,7 @@ class SuperadminOrganizationViewSet(viewsets.ModelViewSet):
             User.objects.filter(id__in=user_ids).delete()
 
 class PublicChurchViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    queryset = Organization.objects.all()
+    queryset = Organization.objects.all().order_by('name')
     serializer_class = PublicOrganizationSerializer
     permission_classes = [AllowAny]
 

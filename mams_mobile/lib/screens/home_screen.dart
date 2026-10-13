@@ -45,9 +45,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _checkForAppUpdate() async {
     final info = await ApiService.checkAppUpdate();
     if (mounted && info['has_update'] == true) {
-      setState(() {
-        _updateInfo = info;
-      });
+      final prefs = await SharedPreferences.getInstance();
+      final dismissedBuild = prefs.getInt('dismissed_update_build') ?? 0;
+      final latestBuild = info['latest_build'] is int ? info['latest_build'] as int : 3;
+      if (dismissedBuild < latestBuild) {
+        setState(() {
+          _updateInfo = info;
+        });
+      }
     }
   }
 
@@ -423,6 +428,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18, color: Color(0xFF059669)),
+                              tooltip: 'Dismiss',
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () async {
+                                final prefs = await SharedPreferences.getInstance();
+                                final latestBuild = _updateInfo?['latest_build'] ?? 3;
+                                await prefs.setInt('dismissed_update_build', latestBuild is int ? latestBuild : 3);
+                                if (mounted) {
+                                  setState(() {
+                                    _updateInfo = null;
+                                  });
+                                }
+                              },
                             ),
                           ],
                         ),

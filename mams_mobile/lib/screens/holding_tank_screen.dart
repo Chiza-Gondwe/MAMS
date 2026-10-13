@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../theme/theme_controller.dart';
 
@@ -41,12 +42,24 @@ class _HoldingTankScreenState extends State<HoldingTankScreen> {
       if (!mounted) return;
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final list = (data is Map && data['results'] is List)
+            ? data['results'] as List<dynamic>
+            : (data is List ? data : <dynamic>[]);
         setState(() {
-          _pendingMembers = (data is Map && data['results'] is List)
-              ? data['results']
-              : (data is List ? data : []);
+          _pendingMembers = list;
           _isLoading = false;
         });
+
+        // Sync pending_members count back into cached dashboard stats immediately
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final cached = prefs.getString('cached_dashboard_json');
+          if (cached != null) {
+            final map = jsonDecode(cached) as Map<String, dynamic>;
+            map['pending_members'] = list.length;
+            await prefs.setString('cached_dashboard_json', jsonEncode(map));
+          }
+        } catch (_) {}
       } else {
         setState(() => _isLoading = false);
       }

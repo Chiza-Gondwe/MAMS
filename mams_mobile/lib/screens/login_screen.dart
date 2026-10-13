@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
 import '../theme/theme_controller.dart';
 import 'home_screen.dart';
@@ -26,6 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String _savedFullName = '';
   String _savedOrgName = '';
   String? _savedProfilePic;
+  File? _localCustomPhoto;
 
   @override
   void initState() {
@@ -41,18 +44,88 @@ class _LoginScreenState extends State<LoginScreen> {
     final full = '$first $last'.trim();
     final org = (prefs.getString('org_name') ?? '').trim();
     final pic = prefs.getString('profile_picture');
+    final localPhotoPath = prefs.getString('login_custom_photo_path');
     final creds = await ApiService.getVaultCredentials();
     if (mounted) {
       setState(() {
         _savedFullName = full;
         _savedOrgName = org;
         _savedProfilePic = pic;
+        if (localPhotoPath != null && File(localPhotoPath).existsSync()) {
+          _localCustomPhoto = File(localPhotoPath);
+        }
         if (_usernameController.text.isEmpty &&
             creds != null &&
             (creds['username'] ?? '').isNotEmpty) {
           _usernameController.text = creds['username']!;
         }
       });
+    }
+  }
+
+  Future<void> _pickOrChangePhoto() async {
+    final picker = ImagePicker();
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Set Profile Picture',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Choose from Gallery'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_outlined),
+                  title: const Text('Take a Photo'),
+                  onTap: () => Navigator.pop(ctx, ImageSource.camera),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (source == null) return;
+
+    try {
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (picked != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('login_custom_photo_path', picked.path);
+        if (!mounted) return;
+        setState(() {
+          _localCustomPhoto = File(picked.path);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile picture updated for this device!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error picking profile picture: $e');
     }
   }
 
@@ -68,6 +141,13 @@ class _LoginScreenState extends State<LoginScreen> {
           _hasVaultCredentials = hasVault || hasToken;
           _canCheckBiometrics = canAuthenticate;
         });
+
+        // WhatsApp-style automatic prompt on app launch
+        if (canAuthenticate && _hasVaultCredentials) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _authenticateBiometric();
+          });
+        }
       }
     } on PlatformException catch (e) {
       debugPrint('Error checking biometrics: $e');
@@ -196,26 +276,90 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: colors.cardBorder, width: 1),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: colors.isDark ? 0.35 : 0.08),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
+                // Top Profile Picture / App Brand Icon (Interactive & User-Specific)
+                GestureDetector(
+                  onTap: _pickOrChangePhoto,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: colors.cardSurface,
+                          border: Border.all(
+                            color: colors.accentBlue.withValues(alpha: 0.6),
+                            width: 2.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colors.accentBlue.withValues(alpha: colors.isDark ? 0.35 : 0.15),
+                              blurRadius: 18,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: _localCustomPhoto != null
+                              ? Image.file(
+                                  _localCustomPhoto!,
+                                  fit: BoxFit.cover,
+                                  width: 88,
+                                  height: 88,
+                                )
+                              : (_savedProfilePic != null && _savedProfilePic!.isNotEmpty)
+                                  ? Image.network(
+                                      _savedProfilePic!,
+                                      fit: BoxFit.cover,
+                                      width: 88,
+                                      height: 88,
+                                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                                        'assets/icon/app_icon.png',
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : (_savedFullName.isNotEmpty)
+                                      ? Container(
+                                          color: colors.iconBadgeBg,
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            _savedFullName[0].toUpperCase(),
+                                            style: TextStyle(
+                                              fontSize: 34,
+                                              fontWeight: FontWeight.w800,
+                                              color: colors.accentBlue,
+                                            ),
+                                          ),
+                                        )
+                                      : Image.asset(
+                                          'assets/icon/app_icon.png',
+                                          fit: BoxFit.cover,
+                                        ),
+                        ),
+                      ),
+                      Positioned.directional(
+                        textDirection: TextDirection.ltr,
+                        bottom: 0,
+                        end: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: colors.accentBlue,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: colors.cardSurface,
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(19),
-                    child: Image.asset(
-                      'assets/icon/app_icon.png',
-                      fit: BoxFit.cover,
-                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -433,72 +577,80 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: colors.primaryNavy,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Text(
-                                  'Sign In',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SizedBox(
+                              height: 48,
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: colors.primaryNavy,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 46,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            if (!_canCheckBiometrics) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Biometrics are not supported or enrolled on this device.')),
-                              );
-                              return;
-                            }
-                            if (!_hasVaultCredentials) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please sign in with your password first to enable biometric login.')),
-                              );
-                              return;
-                            }
-                            if (!_isLoading) {
-                              _authenticateBiometric();
-                            }
-                          },
-                          icon: Icon(Icons.fingerprint, color: colors.textPrimary, size: 20),
-                          label: Text(
-                            'Login with Biometrics',
-                            style: TextStyle(color: colors.textPrimary, fontWeight: FontWeight.w600, fontSize: 14),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: colors.subtleSurface,
-                            side: BorderSide(color: colors.cardBorder),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Sign In',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                              ),
                             ),
                           ),
-                        ),
+                          if (_canCheckBiometrics) ...[
+                            const SizedBox(width: 10),
+                            Material(
+                              color: Colors.transparent,
+                              child: Ink(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: colors.subtleSurface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: colors.cardBorder),
+                                ),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(12),
+                                  onTap: () {
+                                    if (!_hasVaultCredentials) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Please sign in with password first to enable biometric login.'),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    if (!_isLoading) {
+                                      _authenticateBiometric();
+                                    }
+                                  },
+                                  child: Tooltip(
+                                    message: 'Unlock with Fingerprint / Face',
+                                    child: Icon(
+                                      Icons.fingerprint,
+                                      color: colors.accentBlue,
+                                      size: 26,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),

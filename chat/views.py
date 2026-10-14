@@ -188,6 +188,46 @@ class ChannelMessagesAPIView(APIView):
             attachment_type=attachment_type,
         )
 
+        # Notify members mentioned via @FirstName LastName
+        if content and '@' in content and profile.organization:
+            import re
+            from members.models import Member
+            from mams.email_service import send_email_async
+            raw_mentions = re.findall(r'@([A-Za-z0-9_.\-]+(?:\s+[A-Za-z0-9_.\-]+)?)', content)
+            notified_ids = set()
+            for mention in raw_mentions:
+                parts = mention.strip().split()
+                if len(parts) >= 2:
+                    matched = Member.objects.filter(
+                        organization=profile.organization,
+                        first_name__iexact=parts[0],
+                        last_name__iexact=parts[1]
+                    ).exclude(id=profile.id).first()
+                else:
+                    matched = Member.objects.filter(
+                        organization=profile.organization,
+                        first_name__iexact=parts[0]
+                    ).exclude(id=profile.id).first()
+
+                if matched and matched.id not in notified_ids and matched.email:
+                    notified_ids.add(matched.id)
+                    sender_name = f"{profile.first_name} {profile.last_name}".strip()
+                    try:
+                        send_email_async(
+                            subject=f"Mentioned by {sender_name} in {channel.name}",
+                            body=(
+                                f"Hello {matched.first_name},\n\n"
+                                f"{sender_name} mentioned you in the {channel.name} group discussion:\n\n"
+                                f"\"{content}\"\n\n"
+                                f"Open MAMS Mobile or Web to view and reply to the message.\n\n"
+                                f"Best regards,\n{profile.organization.name}"
+                            ),
+                            recipient_email=matched.email,
+                            org_name=profile.organization.name
+                        )
+                    except Exception:
+                        pass
+
         serializer = ChatMessageSerializer(message, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 

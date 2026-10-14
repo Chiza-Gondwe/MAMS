@@ -17,7 +17,10 @@ import {
   Square,
   Video,
   Image as ImageIcon,
-  X
+  X,
+  AtSign,
+  Phone,
+  Mail
 } from 'lucide-react';
 
 export default function GroupChat() {
@@ -29,6 +32,13 @@ export default function GroupChat() {
   const [loadingChannels, setLoadingChannels] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // @ Mention tagging state
+  const [channelMembers, setChannelMembers] = useState([]);
+  const [mentionQuery, setMentionQuery] = useState(null);
+  const [mentionStartIndex, setMentionStartIndex] = useState(-1);
+  const [selectedMentionMember, setSelectedMentionMember] = useState(null);
+  const inputRef = useRef(null);
 
   // Media attachment state (Video / Audio / Image / Document)
   const [selectedFile, setSelectedFile] = useState(null);
@@ -84,6 +94,13 @@ export default function GroupChat() {
     }
   };
 
+  // Load members for @ mentions
+  useEffect(() => {
+    api.getMembers()
+      .then(res => setChannelMembers(res.results || res || []))
+      .catch(err => console.error('Failed to load members for mentions:', err));
+  }, []);
+
   // Load authorized channels on mount
   useEffect(() => {
     let isMounted = true;
@@ -100,7 +117,103 @@ export default function GroupChat() {
       .finally(() => {
         if (isMounted) setLoadingChannels(false);
       });
-    return () => {
+    const handleInputChange = (e) => {
+    const val = e.target.value;
+    setInputMessage(val);
+
+    const cursorPos = e.target.selectionStart || 0;
+    const textBefore = val.slice(0, cursorPos);
+    const atIndex = textBefore.lastIndexOf('@');
+
+    if (atIndex >= 0 && (atIndex === 0 || textBefore[atIndex - 1] === ' ' || textBefore[atIndex - 1] === '\n')) {
+      const query = textBefore.slice(atIndex + 1);
+      if (!query.includes('\n') && query.split(' ').length <= 2) {
+        setMentionQuery(query.toLowerCase());
+        setMentionStartIndex(atIndex);
+        return;
+      }
+    }
+
+    setMentionQuery(null);
+    setMentionStartIndex(-1);
+  };
+
+  const handleSelectMention = (member) => {
+    const name = `${member.first_name || ''} ${member.last_name || ''}`.trim();
+    if (!name) return;
+
+    const beforeAt = inputMessage.slice(0, mentionStartIndex >= 0 ? mentionStartIndex : 0);
+    const cursorPos = inputRef.current ? inputRef.current.selectionStart : inputMessage.length;
+    const afterCursor = inputMessage.slice(cursorPos);
+
+    const newText = `${beforeAt}@${name} ${afterCursor}`;
+    setInputMessage(newText);
+    setMentionQuery(null);
+    setMentionStartIndex(-1);
+
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const nextPos = beforeAt.length + name.length + 2;
+        inputRef.current.setSelectionRange(nextPos, nextPos);
+      }
+    }, 10);
+  };
+
+  const renderMessageContent = (content, isMe) => {
+    if (!content) return null;
+    const mentionRegex = /@([A-Za-z0-9_.-]+(?:\s+[A-Za-z0-9_.-]+)?)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+      const rawMention = match[0];
+      const name = match[1];
+
+      const foundMember = channelMembers.find(m => {
+        const full = `${m.first_name || ''} ${m.last_name || ''}`.trim().toLowerCase();
+        const first = (m.first_name || '').trim().toLowerCase();
+        return full === name.toLowerCase() || first === name.toLowerCase();
+      });
+
+      parts.push(
+        <button
+          key={match.index}
+          type="button"
+          onClick={() => setSelectedMentionMember(foundMember || { first_name: name, last_name: '', role: 'Member' })}
+          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-md font-bold text-xs transition-transform active:scale-95 ${
+            isMe
+              ? 'bg-sky-700/80 hover:bg-sky-800 text-white border border-white/30'
+              : 'bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300'
+          }`}
+          title={`View details for ${name}`}
+        >
+          <AtSign className="w-3 h-3 inline" />
+          <span>{name}</span>
+        </button>
+      );
+      lastIndex = match.index + rawMention.length;
+    }
+
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+
+    return <p className="text-sm leading-relaxed whitespace-pre-wrap">{parts}</p>;
+  };
+
+  const filteredMentionMembers = mentionQuery !== null
+    ? channelMembers.filter(m => {
+        const full = `${m.first_name || ''} ${m.last_name || ''}`.toLowerCase();
+        return full.includes(mentionQuery);
+      }).slice(0, 6)
+    : [];
+
+  return () => {
       isMounted = false;
     };
   }, []);
@@ -539,9 +652,7 @@ export default function GroupChat() {
                           </div>
                         )}
 
-                        {msg.content && (
-                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                        )}
+                        {msg.content && renderMessageContent(msg.content, isMe)}
                         <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isMe ? 'text-sky-100' : 'text-slate-400'}`}>
                           <span>{time}</span>
                           {isMe && <CheckCheck className="w-3 h-3" />}
@@ -614,7 +725,50 @@ export default function GroupChat() {
             )}
 
             {/* Input Bar */}
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-200/80 bg-white flex items-center gap-2">
+            <div className="relative">
+              {/* @ Mention Autocomplete Popup */}
+              {mentionQuery !== null && filteredMentionMembers.length > 0 && (
+                <div className="absolute bottom-full left-4 right-4 mb-2 max-h-48 overflow-y-auto bg-white rounded-xl shadow-xl border border-slate-200 divide-y divide-slate-100 z-30">
+                  <div className="p-2 bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <AtSign className="w-3 h-3 text-sky-600" />
+                    <span>Mention Member</span>
+                  </div>
+                  {filteredMentionMembers.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleSelectMention(m);
+                      }}
+                      className="w-full px-3 py-2 text-left hover:bg-sky-50 flex items-center justify-between transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-sky-100 text-sky-700 font-bold text-xs flex items-center justify-center shrink-0">
+                          {m.profile_picture ? (
+                            <img src={m.profile_picture} alt="" className="w-full h-full rounded-full object-cover" />
+                          ) : (
+                            (m.first_name?.[0] || '?').toUpperCase()
+                          )}
+                        </div>
+                        <div className="truncate">
+                          <span className="text-xs font-semibold text-slate-800">
+                            {m.first_name} {m.last_name}
+                          </span>
+                          <span className="text-[11px] text-slate-400 block truncate">
+                            {m.role || 'Member'}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-semibold text-sky-600 uppercase bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded">
+                        Tag
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-200/80 bg-white flex items-center gap-2">
               {/* Hidden File Inputs for Photos, Videos, and Documents */}
               <input
                 ref={photoInputRef}
@@ -706,10 +860,11 @@ export default function GroupChat() {
               )}
 
               <input
+                ref={inputRef}
                 type="text"
                 value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder={selectedFile ? 'Add an optional caption...' : `Message #${activeChannel.name}...`}
+                onChange={handleInputChange}
+                placeholder={selectedFile ? 'Add an optional caption...' : `Message #${activeChannel.name}... Type @ to mention`}
                 className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300/80 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-600 text-sm bg-slate-50/50"
               />
               <button
@@ -721,6 +876,7 @@ export default function GroupChat() {
                 <Send className="w-4 h-4" />
               </button>
             </form>
+            </div>
           </>
         ) : (
           <div className="h-full flex items-center justify-center text-slate-400">
@@ -728,6 +884,62 @@ export default function GroupChat() {
           </div>
         )}
       </div>
+      {/* Member Details Modal from @ Mention click */}
+      {selectedMentionMember && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center relative animate-in fade-in zoom-in-95">
+            <button
+              onClick={() => setSelectedMentionMember(null)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="w-16 h-16 rounded-full bg-sky-100 text-sky-700 font-bold text-xl flex items-center justify-center mx-auto mb-3 border-2 border-sky-200 shadow-sm">
+              {selectedMentionMember.profile_picture ? (
+                <img src={selectedMentionMember.profile_picture} alt="" className="w-full h-full rounded-full object-cover" />
+              ) : (
+                (selectedMentionMember.first_name?.[0] || '?').toUpperCase()
+              )}
+            </div>
+            <h4 className="font-bold text-slate-800 text-base">
+              {selectedMentionMember.first_name} {selectedMentionMember.last_name}
+            </h4>
+            <span className="inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 capitalize">
+              {selectedMentionMember.role || 'Member'}
+            </span>
+            <div className="mt-5 flex items-center justify-center gap-3">
+              {selectedMentionMember.phone_number && (
+                <>
+                  <a
+                    href={`tel:${selectedMentionMember.phone_number}`}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>Call</span>
+                  </a>
+                  <a
+                    href={`https://wa.me/${selectedMentionMember.phone_number.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 text-xs font-semibold"
+                  >
+                    <span>WhatsApp</span>
+                  </a>
+                </>
+              )}
+              {selectedMentionMember.email && (
+                <a
+                  href={`mailto:${selectedMentionMember.email}`}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-xs font-semibold"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Email</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

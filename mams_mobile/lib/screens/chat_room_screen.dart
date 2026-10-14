@@ -61,13 +61,28 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   bool _showEmojiPicker = false;
   final FocusNode _messageFocusNode = FocusNode();
 
+  // @ Mention tagging state
+  List<dynamic> _channelMembers = [];
+  String? _mentionQuery;
+  int _mentionStartIndex = -1;
+
   @override
   void initState() {
     super.initState();
     _loadCurrentRole();
     _loadInitialMessages();
+    _loadChannelMembers();
     _startPolling();
     _textController.addListener(_onTextChanged);
+  }
+
+  Future<void> _loadChannelMembers() async {
+    try {
+      final members = await ApiService.getMembers();
+      if (mounted) {
+        setState(() => _channelMembers = members);
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadCurrentRole() async {
@@ -79,9 +94,78 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   void _onTextChanged() {
-    final hasText = _textController.text.trim().isNotEmpty;
+    final text = _textController.text;
+    final hasText = text.trim().isNotEmpty;
     if (hasText != _hasTypedText && mounted) {
       setState(() => _hasTypedText = hasText);
+    }
+
+    // Detect @ mention trigger and query
+    final selection = _textController.selection;
+    if (selection.baseOffset >= 0 && selection.baseOffset <= text.length) {
+      final cursor = selection.baseOffset;
+      final textBefore = text.substring(0, cursor);
+      final atIndex = textBefore.lastIndexOf('@');
+
+      if (atIndex >= 0 && (atIndex == 0 || textBefore[atIndex - 1] == ' ' || textBefore[atIndex - 1] == '\n')) {
+        final query = textBefore.substring(atIndex + 1);
+        if (!query.contains('\n') && query.split(' ').length <= 2) {
+          if (_mentionQuery != query.toLowerCase() || _mentionStartIndex != atIndex) {
+            setState(() {
+              _mentionQuery = query.toLowerCase();
+              _mentionStartIndex = atIndex;
+            });
+          }
+          return;
+        }
+      }
+    }
+
+    if (_mentionQuery != null && mounted) {
+      setState(() {
+        _mentionQuery = null;
+        _mentionStartIndex = -1;
+      });
+    }
+  }
+
+  void _selectMention(Map<String, dynamic> member) {
+    final first = (member['first_name'] ?? '').toString().trim();
+    final last = (member['last_name'] ?? '').toString().trim();
+    final name = '$first $last'.trim();
+    if (name.isEmpty) return;
+
+    final text = _textController.text;
+    final cursor = _textController.selection.baseOffset;
+    final beforeAt = text.substring(0, _mentionStartIndex >= 0 ? _mentionStartIndex : 0);
+    final afterCursor = (cursor >= 0 && cursor <= text.length) ? text.substring(cursor) : '';
+
+    final newText = '$beforeAt@$name $afterCursor';
+    _textController.text = newText;
+
+    final newCursor = beforeAt.length + name.length + 2; // '@' + name + ' '
+    _textController.selection = TextSelection.collapsed(offset: newCursor);
+
+    setState(() {
+      _mentionQuery = null;
+      _mentionStartIndex = -1;
+    });
+  }
+
+  String _formatRole(String? rawRole) {
+    switch ((rawRole ?? 'member').toLowerCase()) {
+      case 'admin':
+        return 'Church Admin';
+      case 'superadmin':
+        return 'Super Admin';
+      case 'section_admin':
+        return 'Section Leader';
+      case 'zone_admin':
+        return 'Zone Leader';
+      case 'group_leader':
+        return 'Ministry Leader';
+      default:
+        return 'Congregation Member';
     }
   }
 
@@ -1674,45 +1758,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                                                     isMe,
                                                   ),
                                                   if (content.isNotEmpty)
-                                                    GestureDetector(
-                                                      onTap: () {
-                                                        if (_isSelectionMode) {
-                                                          _toggleSelectMessage(msg);
-                                                          return;
-                                                        }
-                                                        final urlMatch = RegExp(
-                                                          r'https?://\S+',
-                                                        ).firstMatch(content);
-                                                        if (urlMatch != null) {
-                                                          _openMediaUrl(
-                                                            urlMatch.group(0)!,
-                                                          );
-                                                          return;
-                                                        }
-                                                        final phoneMatch = RegExp(
-                                                          r'📞\s*([+0-9\s\-]+)',
-                                                        ).firstMatch(content);
-                                                        if (phoneMatch != null) {
-                                                          final num = phoneMatch
-                                                              .group(1)!
-                                                              .trim();
-                                                          _openMediaUrl(
-                                                            'tel:$num',
-                                                          );
-                                                        }
-                                                      },
-                                                      child: Text(
-                                                        content,
-                                                        style: TextStyle(
-                                                          color: isMe
-                                                              ? Colors.white
-                                                              : colors
-                                                                  .textPrimary,
-                                                          fontSize: 14.5,
-                                                          height: 1.35,
-                                                        ),
-                                                      ),
-                                                    ),
+                                                     _buildMessageContent(content, isMe, colors, msg),
                                                   const SizedBox(height: 4),
                                                   Row(
                                                     mainAxisSize:
@@ -1810,6 +1856,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     ],
                   ),
                 ),
+
+              // @ Mention autocomplete popup
+              if (_mentionQuery != null)
+                _buildMentionSuggestionBox(colors),
 
               // Bottom Input Bar (with WhatsApp-style Voice Recording & Lock)
               _buildBottomInputBar(colors, hasSendableDraft),
@@ -2168,5 +2218,387 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
       ],
     );
   }
-}
 
+  void _handleMessageTap(String content, Map<String, dynamic> msg) {
+    if (_isSelectionMode) {
+      _toggleSelectMessage(msg);
+      return;
+    }
+    final urlMatch = RegExp(r'https?://\S+').firstMatch(content);
+    if (urlMatch != null) {
+      _openMediaUrl(urlMatch.group(0)!);
+      return;
+    }
+    final phoneMatch = RegExp(r'📞\s*([+0-9\s\-]+)').firstMatch(content);
+    if (phoneMatch != null) {
+      final num = phoneMatch.group(1)!.trim();
+      _openMediaUrl('tel:$num');
+    }
+  }
+
+  Widget _buildMessageContent(
+    String content,
+    bool isMe,
+    MamsColors colors,
+    Map<String, dynamic> msg,
+  ) {
+    final mentionRegex = RegExp(r'@([A-Za-z0-9_.-]+(?:\s+[A-Za-z0-9_.-]+)?)');
+    final matches = mentionRegex.allMatches(content).toList();
+
+    if (matches.isEmpty) {
+      return GestureDetector(
+        onTap: () => _handleMessageTap(content, msg),
+        child: Text(
+          content,
+          style: TextStyle(
+            color: isMe ? Colors.white : colors.textPrimary,
+            fontSize: 14.5,
+            height: 1.35,
+          ),
+        ),
+      );
+    }
+
+    final spans = <InlineSpan>[];
+    int currentIndex = 0;
+
+    for (final match in matches) {
+      if (match.start > currentIndex) {
+        spans.add(
+          TextSpan(
+            text: content.substring(currentIndex, match.start),
+            style: TextStyle(
+              color: isMe ? Colors.white : colors.textPrimary,
+              fontSize: 14.5,
+              height: 1.35,
+            ),
+          ),
+        );
+      }
+
+      final mentionText = match.group(0)!;
+      final rawName = match.group(1)!;
+
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: GestureDetector(
+            onTap: () {
+              if (_isSelectionMode) {
+                _toggleSelectMessage(msg);
+                return;
+              }
+              _showMentionedMemberSheet(rawName);
+            },
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isMe
+                    ? Colors.white.withValues(alpha: 0.25)
+                    : const Color(0xFF2563EB).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: isMe
+                      ? Colors.white.withValues(alpha: 0.4)
+                      : const Color(0xFF2563EB).withValues(alpha: 0.35),
+                  width: 0.8,
+                ),
+              ),
+              child: Text(
+                mentionText,
+                style: TextStyle(
+                  color: isMe ? Colors.white : const Color(0xFF1D4ED8),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13.5,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      currentIndex = match.end;
+    }
+
+    if (currentIndex < content.length) {
+      spans.add(
+        TextSpan(
+          text: content.substring(currentIndex),
+          style: TextStyle(
+            color: isMe ? Colors.white : colors.textPrimary,
+            fontSize: 14.5,
+            height: 1.35,
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => _handleMessageTap(content, msg),
+      child: Text.rich(
+        TextSpan(children: spans),
+      ),
+    );
+  }
+
+  Widget _buildMentionSuggestionBox(MamsColors colors) {
+    final query = _mentionQuery ?? '';
+    final filtered = _channelMembers.where((m) {
+      final first = (m['first_name'] ?? '').toString().toLowerCase();
+      final last = (m['last_name'] ?? '').toString().toLowerCase();
+      final full = '$first $last'.trim();
+      if (query.isEmpty) return true;
+      return first.contains(query) || last.contains(query) || full.contains(query);
+    }).take(6).toList();
+
+    if (filtered.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 200),
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.cardSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.cardBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: filtered.length,
+        separatorBuilder: (ctx, idx) => Divider(height: 1, color: colors.cardBorder.withValues(alpha: 0.5)),
+        itemBuilder: (context, index) {
+          final member = Map<String, dynamic>.from(filtered[index]);
+          final first = (member['first_name'] ?? '').toString();
+          final last = (member['last_name'] ?? '').toString();
+          final name = '$first $last'.trim();
+          final role = _formatRole(member['role']?.toString());
+          final photo = member['profile_picture'];
+
+          return InkWell(
+            onTap: () => _selectMention(member),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                    backgroundImage: photo != null ? NetworkImage(photo) : null,
+                    child: photo == null
+                        ? Text(
+                            first.isNotEmpty ? first[0].toUpperCase() : '?',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF2563EB),
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          name,
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        Text(
+                          role,
+                          style: TextStyle(
+                            color: colors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.alternate_email_rounded,
+                    size: 16,
+                    color: colors.accentBlue,
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showMentionedMemberSheet(String rawName) {
+    final cleanName = rawName.trim().toLowerCase();
+    Map<String, dynamic>? member;
+    for (final m in _channelMembers) {
+      final first = (m['first_name'] ?? '').toString().toLowerCase();
+      final last = (m['last_name'] ?? '').toString().toLowerCase();
+      final full = '$first $last'.trim();
+      if (full == cleanName || first == cleanName) {
+        member = Map<String, dynamic>.from(m);
+        break;
+      }
+    }
+
+    final colors = MamsColors.of(context);
+    final displayName = member != null
+        ? '${member['first_name']} ${member['last_name']}'.trim()
+        : rawName;
+    final role = member != null ? _formatRole(member['role']?.toString()) : 'Member';
+    final phone = member?['phone_number']?.toString() ?? '';
+    final email = member?['email']?.toString() ?? '';
+    final photo = member?['profile_picture'];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: colors.cardBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                CircleAvatar(
+                  radius: 34,
+                  backgroundColor: const Color(0xFF2563EB).withValues(alpha: 0.15),
+                  backgroundImage: photo != null ? NetworkImage(photo) : null,
+                  child: photo == null
+                      ? Text(
+                          displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2563EB),
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  displayName,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    role,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF2563EB),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (phone.isNotEmpty) ...[
+                      _buildContactActionButton(
+                        icon: Icons.phone_rounded,
+                        label: 'Call',
+                        color: const Color(0xFF10B981),
+                        onTap: () => _openMediaUrl('tel:$phone'),
+                      ),
+                      const SizedBox(width: 16),
+                      _buildContactActionButton(
+                        icon: Icons.chat_rounded,
+                        label: 'WhatsApp',
+                        color: const Color(0xFF22C55E),
+                        onTap: () {
+                          final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
+                          _openMediaUrl('https://wa.me/$clean');
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                    if (email.isNotEmpty)
+                      _buildContactActionButton(
+                        icon: Icons.mail_rounded,
+                        label: 'Email',
+                        color: const Color(0xFF3B82F6),
+                        onTap: () => _openMediaUrl('mailto:$email'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildContactActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+}

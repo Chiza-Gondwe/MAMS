@@ -172,6 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ApiService.getCurrentUser(),
         ApiService.getAnnouncements(),
         ApiService.getChatChannels(),
+        ApiService.getMembers(),
       ]);
       final user = results[0] as Map<String, dynamic>;
       final announcements = results[1] as List<dynamic>;

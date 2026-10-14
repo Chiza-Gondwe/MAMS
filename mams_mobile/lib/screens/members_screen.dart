@@ -147,6 +147,36 @@ class _MembersScreenState extends State<MembersScreen> {
             ),
           ),
           Divider(height: 1, color: colors.cardBorder),
+          if (ApiService.isOfflineMode)
+            GestureDetector(
+              onTap: _fetchMembers,
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF3C7),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF59E0B)),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.cloud_off_rounded, size: 16, color: Color(0xFFB45309)),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Offline Mode • Showing saved directory. Tap to refresh.',
+                        style: TextStyle(
+                          color: Color(0xFF92400E),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.refresh_rounded, size: 16, color: Color(0xFFB45309)),
+                  ],
+                ),
+              ),
+            ),
           Expanded(
             child: _isLoading
                 ? Center(

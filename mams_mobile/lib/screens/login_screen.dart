@@ -163,17 +163,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!authenticated || !mounted) return;
 
-      // Check if we already have a valid session token
-      final token = await ApiService.getToken();
-      if (!mounted) return;
-      if (token != null && token.isNotEmpty) {
-        Navigator.pushReplacementNamed(context, '/home');
-        return;
-      }
-
-      // If logged out, retrieve credentials from Secure Vault and log in seamlessly
+      // Retrieve credentials from Secure Vault and log in seamlessly to get a fresh server token
       final creds = await ApiService.getVaultCredentials();
-      if (creds != null) {
+      if (creds != null && creds['username'] != null && creds['password'] != null) {
         setState(() {
           _isLoading = true;
           _errorMessage = null;
@@ -189,17 +181,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (result['success'] == true) {
           Navigator.pushReplacementNamed(context, '/home');
-        } else {
-          setState(() {
-            _errorMessage = result['error'] ?? 'Biometric login failed. Please enter password.';
-          });
+          return;
         }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No saved biometric credentials. Please sign in with password first.')),
-          );
-        }
+      }
+
+      // Fallback: Check if we have a valid token (offline or network fallback)
+      final token = await ApiService.getToken();
+      if (!mounted) return;
+      if (token != null && token.isNotEmpty) {
+        Navigator.pushReplacementNamed(context, '/home');
+        return;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Session expired. Please sign in with your password to reconnect.',
+            ),
+          ),
+        );
       }
     } on PlatformException catch (e) {
       if (mounted) {

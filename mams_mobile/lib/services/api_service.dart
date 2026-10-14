@@ -90,9 +90,71 @@ class ApiService {
     await prefs.setString('custom_base_url', formatted);
   }
 
+  static Future<String?> refreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final refresh = prefs.getString('refresh_token');
+    if (refresh == null || refresh.isEmpty) return null;
+
+    try {
+      final baseUrl = await getBaseUrl();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/token/refresh/'),
+            headers: _jsonHeaders(),
+            body: jsonEncode({'refresh': refresh}),
+          )
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map && data['access'] != null) {
+          final newAccess = data['access'].toString();
+          await prefs.setString('access_token', newAccess);
+          if (data['refresh'] != null) {
+            await prefs.setString('refresh_token', data['refresh'].toString());
+          }
+          isOfflineMode = false;
+          return newAccess;
+        }
+      }
+    } catch (_) {}
+
+    // Fallback: silent re-login with vault credentials if saved
+    try {
+      final creds = await getVaultCredentials();
+      if (creds != null && creds['username'] != null && creds['password'] != null) {
+        final loginRes = await login(
+          creds['username']!,
+          creds['password']!,
+          saveToVault: false,
+        );
+        if (loginRes['success'] == true) {
+          return prefs.getString('access_token');
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('access_token');
+    final token = prefs.getString('access_token');
+    if (token == null || token.isEmpty) return null;
+
+    final payload = decodeTokenPayload(token);
+    if (payload != null && payload['exp'] != null) {
+      final exp = int.tryParse(payload['exp'].toString()) ?? 0;
+      final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      // If token expires within 60 seconds or is already expired, refresh it now
+      if (exp <= nowSec + 60) {
+        final refreshed = await refreshToken();
+        if (refreshed != null && refreshed.isNotEmpty) {
+          return refreshed;
+        }
+      }
+    }
+    return token;
   }
 
   static Map<String, dynamic>? decodeTokenPayload(String token) {

@@ -117,102 +117,6 @@ export default function GroupChat() {
       .finally(() => {
         if (isMounted) setLoadingChannels(false);
       });
-    const handleInputChange = (e) => {
-    const val = e.target.value;
-    setInputMessage(val);
-
-    const cursorPos = e.target.selectionStart || 0;
-    const textBefore = val.slice(0, cursorPos);
-    const atIndex = textBefore.lastIndexOf('@');
-
-    if (atIndex >= 0 && (atIndex === 0 || textBefore[atIndex - 1] === ' ' || textBefore[atIndex - 1] === '\n')) {
-      const query = textBefore.slice(atIndex + 1);
-      if (!query.includes('\n') && query.split(' ').length <= 2) {
-        setMentionQuery(query.toLowerCase());
-        setMentionStartIndex(atIndex);
-        return;
-      }
-    }
-
-    setMentionQuery(null);
-    setMentionStartIndex(-1);
-  };
-
-  const handleSelectMention = (member) => {
-    const name = `${member.first_name || ''} ${member.last_name || ''}`.trim();
-    if (!name) return;
-
-    const beforeAt = inputMessage.slice(0, mentionStartIndex >= 0 ? mentionStartIndex : 0);
-    const cursorPos = inputRef.current ? inputRef.current.selectionStart : inputMessage.length;
-    const afterCursor = inputMessage.slice(cursorPos);
-
-    const newText = `${beforeAt}@${name} ${afterCursor}`;
-    setInputMessage(newText);
-    setMentionQuery(null);
-    setMentionStartIndex(-1);
-
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        const nextPos = beforeAt.length + name.length + 2;
-        inputRef.current.setSelectionRange(nextPos, nextPos);
-      }
-    }, 10);
-  };
-
-  const renderMessageContent = (content, isMe) => {
-    if (!content) return null;
-    const mentionRegex = /@([A-Za-z0-9_.-]+(?:\s+[A-Za-z0-9_.-]+)?)/g;
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = mentionRegex.exec(content)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(content.substring(lastIndex, match.index));
-      }
-      const rawMention = match[0];
-      const name = match[1];
-
-      const foundMember = channelMembers.find(m => {
-        const full = `${m.first_name || ''} ${m.last_name || ''}`.trim().toLowerCase();
-        const first = (m.first_name || '').trim().toLowerCase();
-        return full === name.toLowerCase() || first === name.toLowerCase();
-      });
-
-      parts.push(
-        <button
-          key={match.index}
-          type="button"
-          onClick={() => setSelectedMentionMember(foundMember || { first_name: name, last_name: '', role: 'Member' })}
-          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-md font-bold text-xs transition-transform active:scale-95 ${
-            isMe
-              ? 'bg-sky-700/80 hover:bg-sky-800 text-white border border-white/30'
-              : 'bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300'
-          }`}
-          title={`View details for ${name}`}
-        >
-          <AtSign className="w-3 h-3 inline" />
-          <span>{name}</span>
-        </button>
-      );
-      lastIndex = match.index + rawMention.length;
-    }
-
-    if (lastIndex < content.length) {
-      parts.push(content.substring(lastIndex));
-    }
-
-    return <p className="text-sm leading-relaxed whitespace-pre-wrap">{parts}</p>;
-  };
-
-  const filteredMentionMembers = mentionQuery !== null
-    ? channelMembers.filter(m => {
-        const full = `${m.first_name || ''} ${m.last_name || ''}`.toLowerCase();
-        return full.includes(mentionQuery);
-      }).slice(0, 6)
-    : [];
-
   return () => {
       isMounted = false;
     };
@@ -445,6 +349,103 @@ export default function GroupChat() {
     }
     return null;
   };
+
+    const handleInputChange = (e) => {
+    const val = e.target.value;
+    setInputMessage(val);
+
+    const cursorPos = e.target.selectionStart || 0;
+    const textBefore = val.slice(0, cursorPos);
+    const atIndex = textBefore.lastIndexOf('@');
+
+    if (atIndex >= 0 && (atIndex === 0 || textBefore[atIndex - 1] === ' ' || textBefore[atIndex - 1] === '\n')) {
+      const query = textBefore.slice(atIndex + 1);
+      if (!query.includes('\n') && query.split(' ').length <= 2) {
+        setMentionQuery(query.toLowerCase());
+        setMentionStartIndex(atIndex);
+        return;
+      }
+    }
+
+    setMentionQuery(null);
+    setMentionStartIndex(-1);
+  };
+
+  const handleSelectMention = (member) => {
+    const name = `${member.first_name || ''} ${member.last_name || ''}`.trim();
+    if (!name) return;
+
+    const beforeAt = inputMessage.slice(0, mentionStartIndex >= 0 ? mentionStartIndex : 0);
+    const cursorPos = inputRef.current ? inputRef.current.selectionStart : inputMessage.length;
+    const afterCursor = inputMessage.slice(cursorPos);
+
+    const newText = `${beforeAt}@${name} ${afterCursor}`;
+    setInputMessage(newText);
+    setMentionQuery(null);
+    setMentionStartIndex(-1);
+
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const nextPos = beforeAt.length + name.length + 2;
+        inputRef.current.setSelectionRange(nextPos, nextPos);
+      }
+    }, 10);
+  };
+
+  const renderMessageContent = (content, isMe) => {
+    if (!content) return null;
+    const mentionRegex = /@([A-Za-z0-9_.-]+(?:\s+[A-Za-z0-9_.-]+)?)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = mentionRegex.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+      const rawMention = match[0];
+      const name = match[1];
+
+      const foundMember = channelMembers.find(m => {
+        const full = `${m.first_name || ''} ${m.last_name || ''}`.trim().toLowerCase();
+        const first = (m.first_name || '').trim().toLowerCase();
+        return full === name.toLowerCase() || first === name.toLowerCase();
+      });
+
+      parts.push(
+        <button
+          key={match.index}
+          type="button"
+          onClick={() => setSelectedMentionMember(foundMember || { first_name: name, last_name: '', role: 'Member' })}
+          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 mx-0.5 rounded-md font-bold text-xs transition-transform active:scale-95 ${
+            isMe
+              ? 'bg-sky-700/80 hover:bg-sky-800 text-white border border-white/30'
+              : 'bg-sky-100 hover:bg-sky-200 text-sky-800 border border-sky-300'
+          }`}
+          title={`View details for ${name}`}
+        >
+          <AtSign className="w-3 h-3 inline" />
+          <span>{name}</span>
+        </button>
+      );
+      lastIndex = match.index + rawMention.length;
+    }
+
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+
+    return <p className="text-sm leading-relaxed whitespace-pre-wrap">{parts}</p>;
+  };
+
+  const filteredMentionMembers = mentionQuery !== null
+    ? channelMembers.filter(m => {
+        const full = `${m.first_name || ''} ${m.last_name || ''}`.toLowerCase();
+        return full.includes(mentionQuery);
+      }).slice(0, 6)
+    : [];
+
 
   return (
     <div className="flex h-[calc(100vh-8.5rem)] rounded-2xl overflow-hidden glass-card border border-slate-200/80 shadow-xl bg-white/70 backdrop-blur-md">

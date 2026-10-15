@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "mams_mobile",
+            "cwd": "mams_mobile",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "mams_mobile (profile mode)",
+            "cwd": "mams_mobile",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile"
+        },
+        {
+            "name": "mams_mobile (release mode)",
+            "cwd": "mams_mobile",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        }
+    ]
+}

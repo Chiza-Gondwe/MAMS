@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { formatDateTime } from '../utils';
 import { useAuth } from '../context/AuthContext';
-import { QrCode, Plus, CheckCircle, X, Loader, RefreshCw, AlertCircle, Download, Printer, FileText, Layers } from 'lucide-react';
+import { QrCode, Plus, CheckCircle, X, Loader, RefreshCw, AlertCircle, Download, Printer, FileText, Layers, Trash2 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -377,6 +377,25 @@ export default function AttendanceSection() {
             <QrCode className="w-4 h-4 text-indigo-600" />
             <span>{isPTA ? "Permanent Meeting QR" : "Permanent Church QR"}</span>
           </button>
+          {(sessions.length > 0 || records.length > 0) && (
+            <button 
+              onClick={async () => {
+                if (window.confirm("Are you sure you want to delete ALL attendance records and sessions? This will reset all attendance to zero.")) {
+                  try {
+                    await api.clearAllAttendance();
+                    await loadData();
+                  } catch (err) {
+                    alert(err.message || 'Failed to clear attendance');
+                  }
+                }
+              }}
+              className="text-xs bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-sm"
+              title="Clear all sessions and attendance records"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              <span>Clear All</span>
+            </button>
+          )}
           <button 
             onClick={() => setShowScanModal(true)} 
             className="text-sm text-sky-700 hover:text-sky-800 flex items-center gap-1.5 transition-colors"
@@ -571,6 +590,31 @@ export default function AttendanceSection() {
                   >
                     <QrCode className="w-3.5 h-3.5" />
                   </button>
+
+                  {/* Delete Session button */}
+                  <button 
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (window.confirm(`Are you sure you want to delete "${session.title}" and its attendance records?`)) {
+                        try {
+                          await api.deleteSession(session.id);
+                          setSessions(prev => prev.filter(s => s.id !== session.id));
+                          setRecords(prev => prev.filter(r => String(r.session) !== String(session.id)));
+                          if (filterSessionId === String(session.id)) setFilterSessionId('');
+                        } catch (err) {
+                          alert(err.message || 'Failed to delete session');
+                        }
+                      }
+                    }}
+                    title="Delete Session"
+                    className={`p-1.5 border-l transition-colors ${
+                      isSelected 
+                        ? 'border-white/20 text-rose-200 hover:bg-rose-700/50' 
+                        : 'border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50'
+                    }`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               );
             })}
@@ -690,9 +734,27 @@ export default function AttendanceSection() {
                       {formatDateTime(rec.scanned_at)}
                     </td>
                     <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-1 text-emerald-600 text-xs font-semibold">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        <span>Present</span>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1 text-emerald-600 text-xs font-semibold">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>Present</span>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (window.confirm(`Delete attendance record for ${displayName}?`)) {
+                              try {
+                                await api.deleteAttendanceRecord(rec.id);
+                                setRecords(prev => prev.filter(r => r.id !== rec.id));
+                              } catch (err) {
+                                alert(err.message || 'Failed to delete record');
+                              }
+                            }
+                          }}
+                          title="Delete Record"
+                          className="p-1 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors ml-2"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>

@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from django.utils import timezone
 from church_profile.models import Organization
 from members.models import Member
 from attendance.models import AttendanceSession, AttendanceRecord
@@ -35,7 +36,7 @@ class AttendanceSessionAPITest(APITestCase):
         self.session = AttendanceSession.objects.create(
             title='Sunday Morning Service',
             session_type='church',
-            date='2026-06-03',
+            date=timezone.now().date(),
             organization=self.org
         )
 

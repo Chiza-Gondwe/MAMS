@@ -92,32 +92,53 @@ def compute_ai_insights(org, request=None):
 
     for m in active_members:
         attended_set = attended_map.get(m.id, set())
-        attended_recent = len(attended_set)
 
-        # Count consecutive missed sessions starting from most recent session
+        # Only evaluate sessions that occurred on or after the member's join date
+        member_join_date = m.date_joined or (m.created_at.date() if getattr(m, 'created_at', None) else None)
+        member_eligible_sessions = [
+            s for s in recent_sessions 
+            if member_join_date is None or s.date >= member_join_date
+        ]
+        eligible_count = len(member_eligible_sessions)
+        attended_recent = sum(1 for s in member_eligible_sessions if s.id in attended_set)
+
+        # Count consecutive missed sessions since joining
         consecutive_missed = 0
-        for s in recent_sessions:
+        for s in member_eligible_sessions:
             if s.id not in attended_set:
                 consecutive_missed += 1
             else:
                 break
 
-        if total_recent_sessions == 0:
-            score = 85
+        if eligible_count == 0:
+            score = 90
             risk_status = 'active'
-            risk_label = 'Active'
+            risk_label = 'Engaged'
             engaged_count += 1
-            recommendation = f'Active member — no {session_word} recorded yet.'
+            recommendation = f"Newly registered member — welcome them to the congregation!"
+        elif eligible_count == 1:
+            if attended_recent == 1:
+                score = 100
+                risk_status = 'active'
+                risk_label = 'Engaged'
+                engaged_count += 1
+                recommendation = f"Attended their first {session_word}!"
+            else:
+                score = 75
+                risk_status = 'active'
+                risk_label = 'Engaged'
+                engaged_count += 1
+                recommendation = f"New member — missed 1 {session_word}. Send warm welcome check-in."
         else:
-            attendance_ratio = attended_recent / float(total_recent_sessions)
+            attendance_ratio = attended_recent / float(eligible_count)
             penalty = min(45, consecutive_missed * 15)
             score = int(round(max(5, min(100, attendance_ratio * 100 - penalty + 15))))
 
-            if consecutive_missed >= 3 or (total_recent_sessions >= 2 and attended_recent == 0):
+            if consecutive_missed >= 3 or (eligible_count >= 3 and attended_recent == 0):
                 risk_status = 'inactive'
                 risk_label = 'High Risk (Follow-Up)'
                 inactive_count += 1
-                missed_count_display = max(consecutive_missed, total_recent_sessions)
+                missed_count_display = min(consecutive_missed, eligible_count)
                 recommendation = (
                     f"Missed last {missed_count_display} consecutive {session_word}. "
                     f"Recommend {leader_word} follow-up call."
@@ -127,7 +148,7 @@ def compute_ai_insights(org, request=None):
                 risk_label = 'At Risk'
                 at_risk_count += 1
                 recommendation = (
-                    f"Missed {consecutive_missed} recent {session_word} ({attended_recent}/{total_recent_sessions} attended). "
+                    f"Missed {consecutive_missed} recent {session_word} ({attended_recent}/{eligible_count} attended). "
                     f"Send warm check-in message."
                 )
             else:
@@ -135,7 +156,7 @@ def compute_ai_insights(org, request=None):
                 risk_label = 'Engaged'
                 engaged_count += 1
                 recommendation = (
-                    f"Consistent attendance ({attended_recent}/{total_recent_sessions} recent {session_word})."
+                    f"Consistent attendance ({attended_recent}/{eligible_count} recent {session_word})."
                 )
 
         pic_url = None

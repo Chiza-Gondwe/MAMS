@@ -192,6 +192,9 @@ searchUserByEmail: async (email) => {
   }),
   verifyMemberForAttendance: (memberId) => request(`/attendance/sessions/verify_member/${memberId ? `?member_id=${encodeURIComponent(memberId)}` : ''}`),
   getAttendanceRecords: (page = 1, sessionId = '') => request(`/attendance/records/?page=${page}${sessionId ? `&session=${sessionId}` : ''}`),
+  deleteSession: (id) => request(`/attendance/sessions/${id}/`, { method: 'DELETE' }),
+  deleteAttendanceRecord: (id) => request(`/attendance/records/${id}/`, { method: 'DELETE' }),
+  clearAllAttendance: () => request('/attendance/sessions/clear_all/', { method: 'POST' }),
   
   // Announcements
   getAnnouncements: (search = '') => request(`/announcements/?search=${search}`),

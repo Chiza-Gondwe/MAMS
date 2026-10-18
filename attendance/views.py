@@ -58,6 +58,26 @@ class AttendanceSessionViewSet(BaseMultiTenantViewSet):
             return [IsMember()]
         return [IsAdmin()]
 
+    @action(detail=False, methods=['post'], url_path='clear_all')
+    def clear_all(self, request):
+        user = request.user
+        if not user.is_authenticated or not hasattr(user, 'member_profile'):
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+        profile = user.member_profile
+        if profile.role not in ['superadmin', 'admin']:
+            return Response({'error': 'Only admins can clear attendance records.'}, status=status.HTTP_403_FORBIDDEN)
+        org = profile.organization
+        if not org:
+            return Response({'error': 'No organization found.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        records_deleted, _ = AttendanceRecord.objects.filter(session__organization=org).delete()
+        sessions_deleted, _ = AttendanceSession.objects.filter(organization=org).delete()
+        return Response({
+            'message': f'Successfully cleared {records_deleted} attendance records and {sessions_deleted} sessions.',
+            'records_deleted': records_deleted,
+            'sessions_deleted': sessions_deleted
+        }, status=status.HTTP_200_OK)
+
     def _get_frontend_base_url(self):
         from django.conf import settings
         base_url = getattr(settings, 'FRONTEND_URL', None)
@@ -260,6 +280,28 @@ class AttendanceSessionViewSet(BaseMultiTenantViewSet):
                 'error': f"{member_payload['full_name']} is currently {member.status} and cannot check in.",
                 'member': member_payload,
             }, status=status.HTTP_403_FORBIDDEN)
+
+        # Strict Date & Time window enforcement
+        from django.utils import timezone
+        now = timezone.localtime(timezone.now())
+        today = now.date()
+        current_time = now.time()
+
+        if session.date != today:
+            return Response({
+                'error': 'Service is not scheduled for today.',
+                'message': f"This service is scheduled for {session.date.strftime('%b %d, %Y')}, but today is {today.strftime('%b %d, %Y')}. You cannot check in on a different date.",
+                'member': member_payload,
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if session.start_time and session.end_time:
+            if not (session.start_time <= current_time <= session.end_time):
+                return Response({
+                    'error': 'Service is not active at this time.',
+                    'message': f"This service is only active between {session.start_time.strftime('%H:%M')} and {session.end_time.strftime('%H:%M')}. Current time is {current_time.strftime('%H:%M')}. Please scan during service hours.",
+                    'between_services': True,
+                    'member': member_payload,
+                }, status=status.HTTP_400_BAD_REQUEST)
 
         has_attended_before = AttendanceRecord.objects.filter(member=member).exists()
         is_first = not has_attended_before

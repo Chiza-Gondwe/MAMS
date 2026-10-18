@@ -345,15 +345,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return 'K$formatted';
   }
 
-  Future<void> _showThemePickerModal() async {
-    final isCurrentlyDark = Theme.of(context).brightness == Brightness.dark;
-    final nextMode = isCurrentlyDark ? ThemeMode.light : ThemeMode.dark;
-    await ThemeController.setThemeMode(nextMode);
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   Widget _buildActiveTabBody(
     MamsColors colors, {
     required bool isAdmin,
@@ -550,52 +541,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     const SizedBox(height: 22),
 
                     // 4. Quick Actions (Uniform 2x3 Institutional Grid)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Quick Actions',
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
-                          ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Quick Actions',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
                         ),
-                        GestureDetector(
-                          onTap: _showThemePickerModal,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.cardSurface,
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: colors.cardBorder),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  ThemeController.modeIcon,
-                                  size: 13,
-                                  color: colors.iconBadgeFg,
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  ThemeController.modeLabel,
-                                  style: TextStyle(
-                                    color: colors.textSecondary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 12),
                     _buildQuickActionsGrid(colors),
@@ -761,14 +717,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           tooltip: 'Notifications',
           badgeCount: _unreadNotifCount,
           onTap: _showNotificationsSheet,
-        ),
-        const SizedBox(width: 8),
-        // Theme Switcher Button (Light / Dark / System)
-        _buildHeaderIconButton(
-          colors,
-          icon: ThemeController.modeIcon,
-          tooltip: 'Change Theme (${ThemeController.modeLabel})',
-          onTap: _showThemePickerModal,
         ),
         const SizedBox(width: 8),
         // Logout Action

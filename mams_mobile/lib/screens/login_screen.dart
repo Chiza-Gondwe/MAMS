@@ -254,22 +254,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.background,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        actions: [
-          IconButton(
-            tooltip: 'Toggle Light / Dark Mode',
-            icon: Icon(ThemeController.modeIcon, color: colors.textSecondary, size: 21),
-            onPressed: () {
-              final next = colors.isDark ? ThemeMode.light : ThemeMode.dark;
-              ThemeController.setThemeMode(next);
-            },
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

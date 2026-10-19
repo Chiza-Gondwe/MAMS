@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { formatDate } from '../utils';
-import { FileText, Video, Trash2, Plus } from 'lucide-react';
+import { FileText, Video, Trash2, Plus, Play, ExternalLink } from 'lucide-react';
+import { getVideoDetails } from '../pages/Announcements';
 
 export default function AnnouncementsPanel() {
   const [announcements, setAnnouncements] = useState([]);
@@ -76,7 +77,41 @@ export default function AnnouncementsPanel() {
             <h3 className="font-medium text-slate-800 mb-1">{preview.title}</h3>
             <p className="text-xs text-slate-400 mb-3">{formatDate(preview.created_at)}</p>
             <p className="text-sm text-slate-600 mb-3">{preview.content}</p>
-            {preview.video_url && <video src={preview.video_url} controls className="w-full rounded-md" />}
+            {(() => {
+              const v = getVideoDetails(preview);
+              if (!v.url) return null;
+              return (
+                <div className="mt-3 space-y-2">
+                  <div className="rounded-lg overflow-hidden bg-slate-900 aspect-video flex items-center justify-center border border-slate-800">
+                    {v.embedUrl ? (
+                      <iframe
+                        src={v.embedUrl}
+                        title={preview.title}
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : v.isDirect ? (
+                      <video src={v.url} controls className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center p-4">
+                        <Video className="w-8 h-8 text-rose-400 mx-auto mb-1 opacity-80" />
+                        <p className="text-xs text-slate-300">External Video Link</p>
+                      </div>
+                    )}
+                  </div>
+                  <a
+                    href={v.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1.5 w-full py-2 px-3 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition-all"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" /> Watch Video
+                    <ExternalLink className="w-3 h-3 text-rose-200" />
+                  </a>
+                </div>
+              );
+            })()}
             <button onClick={() => setPreview(null)} className="mt-4 btn-secondary w-full">Close</button>
           </div>
         </div>

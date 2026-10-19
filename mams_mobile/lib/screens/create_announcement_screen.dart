@@ -14,6 +14,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _aiPromptController = TextEditingController();
+  final _videoUrlController = TextEditingController();
   String _audience = 'all';
   String _announcementType = 'text';
   String _aiTone = 'warm';
@@ -66,6 +67,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final videoUrl = _announcementType == 'video' ? _videoUrlController.text.trim() : null;
     
     try {
       final success = await ApiService.createAnnouncement(
@@ -73,6 +75,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
         _contentController.text.trim(),
         _audience,
         _announcementType,
+        videoUrl,
       );
       
       if (success) {
@@ -103,6 +106,7 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     _titleController.dispose();
     _contentController.dispose();
     _aiPromptController.dispose();
+    _videoUrlController.dispose();
     super.dispose();
   }
 
@@ -330,6 +334,38 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                           setState(() => _announcementType = value!);
                         },
                       ),
+                      if (_announcementType == 'video') ...[
+                        const SizedBox(height: 18),
+                        Text('Video Link (YouTube, Vimeo, etc.)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: colors.textPrimary)),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _videoUrlController,
+                          style: TextStyle(color: colors.textPrimary),
+                          decoration: InputDecoration(
+                            hintText: 'https://youtube.com/watch?v=... or https://youtu.be/...',
+                            hintStyle: TextStyle(color: colors.textMuted),
+                            prefixIcon: Icon(Icons.videocam_rounded, color: colors.primaryNavy),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: colors.cardBorder),
+                            ),
+                            filled: true,
+                            fillColor: colors.subtleSurface,
+                          ),
+                          validator: (value) {
+                            if (_announcementType == 'video') {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Video link is required for video announcements';
+                              }
+                              if (!value.trim().startsWith('https://')) {
+                                return 'Video link must start with https://';
+                              }
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,

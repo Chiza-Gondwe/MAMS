@@ -1,8 +1,34 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
 import { formatDate } from '../utils';
-import { Trash2, Plus, Search, X, Sparkles } from 'lucide-react';
+import { Trash2, Plus, Search, X, Sparkles, Play, Video, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+
+export const getVideoDetails = (item) => {
+  if (!item) return { url: null, embedUrl: null, isDirect: false };
+  let url = (item.video_url || '').trim();
+  if (!url && item.content) {
+    const match = item.content.match(/https?:\/\/[^\s]+/);
+    if (match) {
+      const candidate = match[0];
+      if (candidate.includes('youtu') || candidate.includes('vimeo') || candidate.includes('drive.google') || candidate.endsWith('.mp4') || item.announcement_type === 'video') {
+        url = candidate;
+      }
+    }
+  }
+  if (!url) return { url: null, embedUrl: null, isDirect: false };
+
+  const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+  if (ytMatch) {
+    return { url, embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}`, isDirect: false };
+  }
+
+  if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
+    return { url, embedUrl: null, isDirect: true };
+  }
+
+  return { url, embedUrl: null, isDirect: false };
+};
 
 export default function Announcements() {
   const [announcements, setAnnouncements] = useState([]);
@@ -131,30 +157,42 @@ export default function Announcements() {
           <div className="col-span-full py-12 text-center text-sm text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm">
             No announcements found.
           </div>
-        ) : filtered.map(ann => (
-          <div key={ann.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer flex flex-col" onClick={() => setPreview(ann)}>
-            <div className="p-5 flex-1">
-              <div className="flex justify-between items-start mb-3">
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                  ann.announcement_type === 'video' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                }`}>
-                  {ann.announcement_type === 'video' ? 'Video' : 'Text'}
-                </span>
-                <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full capitalize">
-                  {ann.audience || 'All'}
-                </span>
+        ) : filtered.map(ann => {
+          const v = getVideoDetails(ann);
+          const isVideo = ann.announcement_type === 'video' || Boolean(v.url);
+          return (
+            <div key={ann.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer flex flex-col" onClick={() => setPreview(ann)}>
+              <div className="p-5 flex-1">
+                <div className="flex justify-between items-start mb-3">
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                    isVideo ? 'bg-rose-100 text-rose-700 font-bold flex items-center gap-1' : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {isVideo && <Play className="w-3 h-3 fill-rose-600" />}
+                    {isVideo ? 'Video' : 'Text'}
+                  </span>
+                  <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full capitalize">
+                    {ann.audience || 'All'}
+                  </span>
+                </div>
+                <h3 className="font-semibold text-slate-800 mb-2 line-clamp-1">{ann.title}</h3>
+                <p className="text-sm text-slate-500 line-clamp-2">{ann.content}</p>
+                {v.url && (
+                  <div className="mt-3">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 transition-colors">
+                      <Play className="w-3 h-3 fill-rose-600" /> Watch Video
+                    </span>
+                  </div>
+                )}
               </div>
-              <h3 className="font-semibold text-slate-800 mb-2 line-clamp-1">{ann.title}</h3>
-              <p className="text-sm text-slate-500 line-clamp-2">{ann.content}</p>
+              <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <span className="text-xs text-slate-400">{formatDate(ann.created_at)}</span>
+                <button className="text-slate-400 hover:text-red-600 p-1.5 rounded-md hover:bg-slate-200 transition-colors" onClick={(e) => { e.stopPropagation(); api.deleteAnnouncement(ann.id).then(() => fetchData()); }}>
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <span className="text-xs text-slate-400">{formatDate(ann.created_at)}</span>
-              <button className="text-slate-400 hover:text-red-600 p-1.5 rounded-md hover:bg-slate-200 transition-colors" onClick={(e) => { e.stopPropagation(); api.deleteAnnouncement(ann.id).then(() => fetchData()); }}>
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Preview Modal */}
@@ -169,11 +207,41 @@ export default function Announcements() {
               <span className="inline-block text-xs font-medium text-sky-700 bg-sky-50 px-2 py-1 rounded mb-3 capitalize">Audience: {preview.audience || 'All'}</span>
               <p className="text-slate-600 leading-relaxed whitespace-pre-wrap text-sm">{preview.content}</p>
             </div>
-            {preview.video_url && (
-              <div className="mt-4 rounded-lg overflow-hidden bg-slate-900 aspect-video flex items-center justify-center">
-                 <video src={preview.video_url} controls className="w-full h-full object-cover" />
-              </div>
-            )}
+            {(() => {
+              const v = getVideoDetails(preview);
+              if (!v.url) return null;
+              return (
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-xl overflow-hidden bg-slate-900 aspect-video flex items-center justify-center border border-slate-800 shadow-inner">
+                    {v.embedUrl ? (
+                      <iframe
+                        src={v.embedUrl}
+                        title={preview.title}
+                        className="w-full h-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : v.isDirect ? (
+                      <video src={v.url} controls className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center p-6">
+                        <Video className="w-12 h-12 text-rose-400 mx-auto mb-2 opacity-80" />
+                        <p className="text-xs text-slate-300 font-medium">External Video Announcement</p>
+                      </div>
+                    )}
+                  </div>
+                  <a
+                    href={v.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+                  >
+                    <Play className="w-4 h-4 fill-white" /> Watch Video on Full Screen
+                    <ExternalLink className="w-3.5 h-3.5 text-rose-200" />
+                  </a>
+                </div>
+              );
+            })()}
             <div className="mt-6">
               <button onClick={() => setPreview(null)} className="btn-secondary w-full py-2.5">Close Preview</button>
             </div>

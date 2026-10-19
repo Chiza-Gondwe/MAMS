@@ -663,21 +663,26 @@ class ApiService {
     String title,
     String content,
     String audience,
-    String announcementType,
-  ) async {
+    String announcementType, [
+    String? videoUrl,
+  ]) async {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
+      final Map<String, dynamic> body = {
+        'title': title,
+        'content': content,
+        'audience': audience,
+        'announcement_type': announcementType,
+      };
+      if (videoUrl != null && videoUrl.trim().isNotEmpty) {
+        body['video_url'] = videoUrl.trim();
+      }
       final response = await http
           .post(
             Uri.parse('$baseUrl/announcements/'),
             headers: _jsonHeaders(token),
-            body: jsonEncode({
-              'title': title,
-              'content': content,
-              'audience': audience,
-              'announcement_type': announcementType,
-            }),
+            body: jsonEncode(body),
           )
           .timeout(_timeout);
       return response.statusCode == 201;

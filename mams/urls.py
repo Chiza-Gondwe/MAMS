@@ -97,8 +97,8 @@ def app_version_info(request):
     from django.http import JsonResponse
     version_file = settings.BASE_DIR / 'mams' / 'app_version.json'
     data = {
-        "version": "1.3.0",
-        "build_number": 3,
+        "version": "1.2.0",
+        "build_number": 2,
         "release_notes": "Single appearance setting and smart video announcement player.",
     }
     if version_file.exists():
@@ -109,7 +109,7 @@ def app_version_info(request):
             pass
     scheme = 'https' if request.is_secure() or 'pythonanywhere.com' in request.get_host() else request.scheme
     if not data.get('download_url') or 'api/download-app' in data.get('download_url', ''):
-        data['download_url'] = f"{scheme}://{request.get_host()}/api/download-app/?v={data.get('build_number', 3)}"
+        data['download_url'] = f"{scheme}://{request.get_host()}/api/download-app/?v={data.get('build_number', 2)}"
     return JsonResponse(data)
 
 from communications.views import save_webpush_subscription

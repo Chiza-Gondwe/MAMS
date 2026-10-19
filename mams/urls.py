@@ -58,7 +58,8 @@ router.register(r'school/students', StudentViewSet, basename='student')
 router.register(r'sermons', SermonViewSet, basename='sermon')
 router.register(r'prayer-requests', PrayerRequestViewSet, basename='prayerrequest')
 
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponseRedirect
+import json
 from django.urls import re_path
 from django.views.static import serve as static_serve
 
@@ -71,6 +72,17 @@ def serve_react_index(request):
     return HttpResponse("MAMS API is running")
 
 def download_mobile_apk(request):
+    version_file = settings.BASE_DIR / 'mams' / 'app_version.json'
+    if version_file.exists():
+        try:
+            with open(version_file, 'r', encoding='utf-8') as f:
+                vdata = json.load(f)
+                release_url = vdata.get('external_download_url') or vdata.get('download_url')
+                if release_url and str(release_url).startswith('http') and 'api/download-app' not in str(release_url):
+                    return HttpResponseRedirect(release_url)
+        except Exception:
+            pass
+
     apk_file = settings.BASE_DIR / 'MAMS_Mobile_Release.apk'
     if apk_file.exists():
         return FileResponse(
@@ -82,13 +94,12 @@ def download_mobile_apk(request):
     return HttpResponse("MAMS Mobile APK not found on server.", status=404)
 
 def app_version_info(request):
-    import json
     from django.http import JsonResponse
     version_file = settings.BASE_DIR / 'mams' / 'app_version.json'
     data = {
-        "version": "1.2.0",
-        "build_number": 2,
-        "release_notes": "Latest MAMS Mobile release.",
+        "version": "1.3.0",
+        "build_number": 3,
+        "release_notes": "Single appearance setting and smart video announcement player.",
     }
     if version_file.exists():
         try:
@@ -97,7 +108,8 @@ def app_version_info(request):
         except Exception:
             pass
     scheme = 'https' if request.is_secure() or 'pythonanywhere.com' in request.get_host() else request.scheme
-    data['download_url'] = f"{scheme}://{request.get_host()}/api/download-app/?v={data.get('build_number', 2)}"
+    if not data.get('download_url') or 'api/download-app' in data.get('download_url', ''):
+        data['download_url'] = f"{scheme}://{request.get_host()}/api/download-app/?v={data.get('build_number', 3)}"
     return JsonResponse(data)
 
 from communications.views import save_webpush_subscription

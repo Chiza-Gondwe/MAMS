@@ -91,6 +91,8 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
             'phone_number', 'address', 'role', 'status', 'gender', 'password', 'ministries', 'section_id', 'zone_id', 'organization',
             'profile_picture', 'latitude', 'longitude'
         ]
+        # Public self-registration must never choose its own role or status
+        read_only_fields = ['role', 'status']
         extra_kwargs = {
             'middle_name': {'required': False, 'allow_blank': True},
             'address': {'required': False, 'allow_blank': True},
@@ -100,11 +102,12 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password', None)
         ministries = validated_data.pop('ministries', [])
         organization = validated_data.pop('organization', None)
+        validated_data.pop('role', None)
+        validated_data.pop('status', None)
         selected_section = validated_data.get('section')
         if selected_section and not validated_data.get('zone') and getattr(selected_section, 'zone', None):
             validated_data['zone'] = selected_section.zone
-        default_status = 'active' if selected_section else 'pending_review'
-        status_val = validated_data.pop('status', default_status)
+        status_val = 'active' if selected_section else 'pending_review'
         
         with transaction.atomic():
             email = validated_data['email']
@@ -128,6 +131,7 @@ class RegisterMemberSerializer(serializers.ModelSerializer):
                 otp_code=otp,
                 otp_created_at=timezone.now(),
                 organization=organization,
+                role='member',
                 status=status_val,
                 **validated_data
             )

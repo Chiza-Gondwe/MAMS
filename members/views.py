@@ -284,6 +284,12 @@ class MemberViewSet(BaseMultiTenantViewSet):
         from django.contrib.auth.models import User
         from django.db import transaction
         
+        from rest_framework.exceptions import PermissionDenied
+        # Only a super administrator may create another super administrator
+        if (serializer.validated_data.get('role') == 'superadmin'
+                and self.request.user.member_profile.role != 'superadmin'):
+            raise PermissionDenied("Only a super administrator can create a super administrator.")
+
         with transaction.atomic():
             member = serializer.save(
                 organization=self.request.user.member_profile.organization,
@@ -348,6 +354,14 @@ class MemberViewSet(BaseMultiTenantViewSet):
         
         profile = getattr(self.request.user, 'member_profile', None)
         
+        # Only a super administrator may assign the superadmin role or move a member to another organisation
+        if profile and profile.role != 'superadmin':
+            if serializer.validated_data.get('role') == 'superadmin':
+                raise PermissionDenied("Only a super administrator can assign the super administrator role.")
+            if ('organization' in serializer.validated_data
+                    and serializer.validated_data['organization'] != profile.organization):
+                raise PermissionDenied("Only a super administrator can move a member to another organisation.")
+
         # Enforce Power Ceiling and Field Restrictions
         if profile and profile.role not in ['superadmin', 'admin']:
             # Regular members cannot change their own role, status, or organization

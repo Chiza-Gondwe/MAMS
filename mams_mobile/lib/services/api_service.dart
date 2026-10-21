@@ -12,8 +12,8 @@ class ApiService {
   static const Duration _timeout = Duration(seconds: 12);
 
   /// Installed APK version & build number (checked against /api/app-version/)
-  static const String currentAppVersion = '1.2.0';
-  static const int currentBuildNumber = 2;
+  static const String currentAppVersion = '1.3.0';
+  static const int currentBuildNumber = 3;
 
   /// Tracks whether the app is currently operating on cached offline data
   static bool isOfflineMode = false;

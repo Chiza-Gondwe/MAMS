@@ -97,8 +97,8 @@ def app_version_info(request):
     from django.http import JsonResponse
     version_file = settings.BASE_DIR / 'mams' / 'app_version.json'
     data = {
-        "version": "1.2.0",
-        "build_number": 2,
+        "version": "1.3.0",
+        "build_number": 3,
         "release_notes": "Single appearance setting and smart video announcement player.",
     }
     if version_file.exists():

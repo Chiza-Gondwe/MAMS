@@ -239,8 +239,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final userKey = (user['username'] ?? prefs.getString('username') ?? 'user')
           .toString();
       final readIds = prefs.getStringList('read_notifs_$userKey') ?? <String>[];
+      for (final n in notifs) {
+        n['is_read'] = readIds.contains(n['id'].toString());
+      }
       final unread = notifs
-          .where((n) => !readIds.contains(n['id'].toString()))
+          .where((n) => n['is_read'] != true)
           .length;
 
       final fetchedOrgCode =
@@ -736,10 +739,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final userKey =
         (_userData?['username'] ?? prefs.getString('username') ?? 'user')
             .toString();
-    final allIds = _notifications.map((n) => n['id'].toString()).toList();
+    final existing = prefs.getStringList('read_notifs_$userKey') ?? <String>[];
+    final allIds = {
+      ...existing,
+      ..._notifications.map((n) => n['id'].toString()),
+    }.toList();
     await prefs.setStringList('read_notifs_$userKey', allIds);
     if (mounted) {
-      setState(() => _unreadNotifCount = 0);
+      setState(() {
+        for (final n in _notifications) {
+          n['is_read'] = true;
+        }
+        _unreadNotifCount = 0;
+      });
     }
   }
 
@@ -753,6 +765,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (!readIds.contains(id)) {
       readIds.add(id);
       await prefs.setStringList('read_notifs_$userKey', readIds);
+    }
+    if (mounted) {
+      setState(() {
+        notif['is_read'] = true;
+        _unreadNotifCount = _notifications
+            .where((n) => n['is_read'] != true)
+            .length;
+      });
     }
     if (!mounted) return;
     Navigator.pop(context);
@@ -887,6 +907,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       separatorBuilder: (_, _) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final n = _notifications[index];
+                        final isRead = n['is_read'] == true;
                         final type = n['type']?.toString() ?? 'announcement';
                         final IconData icon = type == 'chat'
                             ? Icons.forum_rounded
@@ -896,63 +917,136 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         return InkWell(
                           borderRadius: BorderRadius.circular(12),
                           onTap: () => _handleNotificationTap(n),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: sheetColors.subtleSurface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: sheetColors.cardBorder),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                    color: sheetColors.iconBadgeBg,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Icon(
-                                    icon,
-                                    color: sheetColors.iconBadgeFg,
-                                    size: 19,
-                                  ),
+                          child: Opacity(
+                            opacity: isRead ? 0.52 : 1.0,
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isRead
+                                    ? sheetColors.cardSurface
+                                    : sheetColors.subtleSurface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isRead
+                                      ? sheetColors.cardBorder
+                                      : sheetColors.accentBlue.withValues(alpha: 0.45),
+                                  width: isRead ? 1.0 : 1.4,
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        (n['title'] ?? '').toString(),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: sheetColors.textPrimary,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13.5,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: isRead
+                                          ? sheetColors.subtleSurface
+                                          : sheetColors.iconBadgeBg,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      icon,
+                                      color: isRead
+                                          ? sheetColors.textMuted
+                                          : sheetColors.iconBadgeFg,
+                                      size: 19,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                (n['title'] ?? '').toString(),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: isRead
+                                                      ? sheetColors.textMuted
+                                                      : sheetColors.textPrimary,
+                                                  fontWeight: isRead
+                                                      ? FontWeight.w400
+                                                      : FontWeight.w800,
+                                                  fontSize: 13.5,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            if (!isRead)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: sheetColors.iconBadgeBg,
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Container(
+                                                      width: 6,
+                                                      height: 6,
+                                                      decoration: BoxDecoration(
+                                                        color: sheetColors.accentBlue,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'Unread',
+                                                      style: TextStyle(
+                                                        color: sheetColors.accentBlue,
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.w800,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              )
+                                            else
+                                              Text(
+                                                'Read',
+                                                style: TextStyle(
+                                                  color: sheetColors.textMuted,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                          ],
                                         ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        (n['subtitle'] ?? '').toString(),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: sheetColors.textSecondary,
-                                          fontSize: 12,
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          (n['subtitle'] ?? '').toString(),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: isRead
+                                                ? sheetColors.textMuted
+                                                : sheetColors.textPrimary,
+                                            fontWeight: isRead
+                                                ? FontWeight.w400
+                                                : FontWeight.w600,
+                                            fontSize: 12,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                Icon(
-                                  Icons.chevron_right_rounded,
-                                  color: sheetColors.textMuted,
-                                  size: 18,
-                                ),
-                              ],
+                                  const SizedBox(width: 6),
+                                  Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: sheetColors.textMuted,
+                                    size: 18,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         );

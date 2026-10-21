@@ -110,10 +110,6 @@ export default function Topbar({ onToggleSidebar, onSearch }) {
           date: new Date()
         }] : [];
         
-        const allNotifs = [...pendingNotifs, ...chatNotifs, ...anns, ...evts, ...srms].sort((a, b) => b.date - a.date);
-        const top8 = allNotifs.slice(0, 8);
-        setNotifications(top8);
-        
         const storageKey = `readNotifs_${user?.id || user?.username || 'default'}`;
         let readNotifs = [];
         try {
@@ -121,8 +117,15 @@ export default function Topbar({ onToggleSidebar, onSearch }) {
         } catch (e) {
           readNotifs = [];
         }
+
+        const allNotifs = [...pendingNotifs, ...chatNotifs, ...anns, ...evts, ...srms].sort((a, b) => b.date - a.date);
+        const top8 = allNotifs.slice(0, 8).map(n => ({
+          ...n,
+          isRead: readNotifs.includes(n.id),
+        }));
+        setNotifications(top8);
         
-        const unread = top8.filter(n => !readNotifs.includes(n.id)).length;
+        const unread = top8.filter(n => !n.isRead).length;
         setUnreadCount(unread);
       } catch (err) {
         console.error("Failed to load notifications", err);
@@ -137,8 +140,13 @@ export default function Topbar({ onToggleSidebar, onSearch }) {
   const handleMarkAllAsRead = () => {
     if (notifications.length > 0) {
       const storageKey = `readNotifs_${user?.id || user?.username || 'default'}`;
-      const allIds = notifications.map(n => n.id);
-      localStorage.setItem(storageKey, JSON.stringify(allIds));
+      let existing = [];
+      try {
+        existing = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      } catch (e) {}
+      const merged = Array.from(new Set([...existing, ...notifications.map(n => n.id)]));
+      localStorage.setItem(storageKey, JSON.stringify(merged));
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       setUnreadCount(0);
     }
   };
@@ -160,6 +168,7 @@ export default function Topbar({ onToggleSidebar, onSearch }) {
         localStorage.setItem(storageKey, JSON.stringify(readNotifs));
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
+      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, isRead: true } : n));
     } catch(e) {}
     
     setShowNotifications(false);
@@ -319,33 +328,60 @@ export default function Topbar({ onToggleSidebar, onSearch }) {
                 {notifications.length === 0 ? (
                   <div className="p-6 text-center text-slate-500 text-sm">No new notifications</div>
                 ) : (
-                  notifications.map((notif, idx) => (
-                    <div 
-                      key={idx} 
-                      onClick={() => handleNotificationClick(notif)}
-                      className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer flex gap-3"
-                    >
-                      <div className={`mt-0.5 p-1.5 rounded-full flex-shrink-0 ${
-                        notif.type === 'chat'
-                          ? 'bg-sky-50 text-sky-600'
-                          : notif.type === 'pending'
-                          ? 'bg-amber-50 text-amber-600'
-                          : 'bg-indigo-50 text-indigo-600'
-                      }`}>
-                        {notif.type === 'chat' ? (
-                          <MessageSquare className="w-4 h-4" />
-                        ) : notif.type === 'pending' ? (
-                          <UserCheck className="w-4 h-4" />
-                        ) : (
-                          <Megaphone className="w-4 h-4" />
-                        )}
+                  notifications.map((notif, idx) => {
+                    const isRead = Boolean(notif.isRead);
+                    return (
+                      <div 
+                        key={idx} 
+                        onClick={() => handleNotificationClick(notif)}
+                        className={`px-4 py-3 border-b border-slate-100 transition-colors cursor-pointer flex items-start gap-3 ${
+                          isRead
+                            ? 'bg-white opacity-55 hover:opacity-80 hover:bg-slate-50'
+                            : 'bg-indigo-50/40 hover:bg-indigo-50/70'
+                        }`}
+                      >
+                        <div className={`mt-0.5 p-1.5 rounded-full flex-shrink-0 ${
+                          isRead
+                            ? 'bg-slate-100 text-slate-400'
+                            : notif.type === 'chat'
+                            ? 'bg-sky-100 text-sky-700'
+                            : notif.type === 'pending'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-indigo-100 text-indigo-700'
+                        }`}>
+                          {notif.type === 'chat' ? (
+                            <MessageSquare className="w-4 h-4" />
+                          ) : notif.type === 'pending' ? (
+                            <UserCheck className="w-4 h-4" />
+                          ) : (
+                            <Megaphone className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className={`text-sm truncate ${
+                              isRead ? 'font-normal text-slate-500' : 'font-bold text-slate-950'
+                            }`}>
+                              {notif.title}
+                            </p>
+                            {isRead ? (
+                              <span className="text-[10px] font-medium text-slate-400 shrink-0">Read</span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                                Unread
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-xs mt-0.5 line-clamp-1 ${
+                            isRead ? 'font-normal text-slate-400' : 'font-semibold text-slate-800'
+                          }`}>
+                            {notif.content}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-slate-800 truncate">{notif.title}</p>
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{notif.content}</p>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
               <div onClick={handleMarkAllAsRead} className="p-2 bg-slate-50 border-t border-slate-100 text-center cursor-pointer hover:bg-slate-100 transition-colors text-indigo-600 text-xs font-semibold">

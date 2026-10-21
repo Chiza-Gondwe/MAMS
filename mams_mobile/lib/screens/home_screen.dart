@@ -231,6 +231,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             'type': 'announcement',
             'title': (a['title'] ?? 'New Announcement').toString(),
             'subtitle': (a['content'] ?? a['body'] ?? '').toString(),
+            'raw_item': a,
           });
         }
       }
@@ -768,9 +769,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         MaterialPageRoute(builder: (_) => const HoldingTankScreen()),
       );
     } else {
+      final raw = notif['raw_item'];
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const AnnouncementsScreen()),
+        MaterialPageRoute(
+          builder: (_) => AnnouncementsScreen(
+            initialAnnouncement:
+                raw is Map ? Map<String, dynamic>.from(raw) : null,
+          ),
+        ),
       );
     }
     _loadData();
@@ -2132,67 +2139,118 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Column(
       children: _announcements.take(3).map((a) {
         final isUrgent = a['priority'] == 'URGENT';
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: colors.cardSurface,
+        final hasVideo = AnnouncementsScreen.extractVideoUrl(a) != null ||
+            a['announcement_type'] == 'video';
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isUrgent
-                  ? colors.warningAmber.withValues(alpha: 0.5)
-                  : colors.cardBorder,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+            onTap: () {
+              if (a is Map) {
+                AnnouncementsScreen.showAnnouncementDetailSheet(
+                  context,
+                  Map<String, dynamic>.from(a),
+                );
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: colors.cardSurface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isUrgent
+                      ? colors.warningAmber.withValues(alpha: 0.5)
+                      : colors.cardBorder,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isUrgent)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 2,
-                      ),
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        color: colors.warningBg,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        'URGENT',
-                        style: TextStyle(
-                          color: colors.warningAmber,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
+                  Row(
+                    children: [
+                      if (isUrgent)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            color: colors.warningBg,
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: Text(
+                            'URGENT',
+                            style: TextStyle(
+                              color: colors.warningAmber,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      if (hasVideo)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(5),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(
+                                Icons.play_circle_fill_rounded,
+                                color: Color(0xFFDC2626),
+                                size: 11,
+                              ),
+                              SizedBox(width: 3),
+                              Text(
+                                'VIDEO',
+                                style: TextStyle(
+                                  color: Color(0xFFDC2626),
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Expanded(
+                        child: Text(
+                          a['title'] ?? '',
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.5,
+                          ),
                         ),
                       ),
-                    ),
-                  Expanded(
-                    child: Text(
-                      a['title'] ?? '',
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14.5,
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        color: colors.textMuted,
+                        size: 18,
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    a['body'] ?? a['content'] ?? '',
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 13,
+                      height: 1.35,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                a['body'] ?? a['content'] ?? '',
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: 13,
-                  height: 1.35,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            ),
           ),
         );
       }).toList(),

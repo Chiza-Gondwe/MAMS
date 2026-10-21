@@ -72,11 +72,14 @@ export default function AnnouncementsPanel() {
 
       {/* Preview Modal */}
       {preview && (
-        <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50" onClick={() => setPreview(null)}>
-          <div className="bg-white rounded-lg p-5 max-w-md w-full border border-slate-200" onClick={e => e.stopPropagation()}>
-            <h3 className="font-medium text-slate-800 mb-1">{preview.title}</h3>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50" onClick={() => setPreview(null)}>
+          <div className="bg-white rounded-xl p-5 max-w-md w-full max-h-[88vh] overflow-y-auto border border-slate-200 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-start gap-2 mb-1">
+              <h3 className="font-semibold text-slate-800">{preview.title}</h3>
+              <button type="button" onClick={() => setPreview(null)} className="text-slate-400 hover:text-slate-700 text-lg leading-none px-1.5 py-0.5 rounded hover:bg-slate-100">×</button>
+            </div>
             <p className="text-xs text-slate-400 mb-3">{formatDate(preview.created_at)}</p>
-            <p className="text-sm text-slate-600 mb-3">{preview.content}</p>
+            <p className="text-sm text-slate-600 mb-3 whitespace-pre-wrap">{preview.content}</p>
             {(() => {
               const v = getVideoDetails(preview);
               if (!v.url) return null;

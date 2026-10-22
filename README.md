@@ -91,30 +91,34 @@ MAMS/
 
 ## Running It Locally
 
-If you want to clone this repo and run it on your own machine:
+> **Detailed Step-by-Step Guide & Troubleshooting:** See **[HOW_TO_RUN.md](HOW_TO_RUN.md)** for full instructions, common fixes, and how to run from a downloaded GitHub ZIP file.
 
-### 1. Backend (Django API)
+### 1. Backend (Django API + Pre-built Web Portal)
 ```bash
 git clone https://github.com/Chiza-Gondwe/MAMS.git
 cd MAMS
+
+# Create a .env file in the root folder so Django uses SQLite out-of-the-box:
+echo DB_ENGINE=sqlite3 > .env
 
 python -m venv venv
 venv\Scripts\activate        # On Windows (use `source venv/bin/activate` on Mac/Linux)
 pip install -r requirements.txt
 
 python manage.py migrate
-python manage.py seed_ucz    # Loads sample UCZ Trinity Congregation data
+python manage.py createsuperuser
 python manage.py runserver
 ```
+*(Once running, open **http://127.0.0.1:8000/** — Django automatically serves the built React web app too!)*
 
-### 2. Web Portal (React + Vite)
+### 2. Web Portal in Dev Mode (Optional — only if editing React source code)
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### 3. Mobile App (Flutter)
+### 3. Mobile App (Optional — only if building Flutter source code)
 ```bash
 cd mams_mobile
 flutter pub get

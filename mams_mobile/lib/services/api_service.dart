@@ -1202,4 +1202,127 @@ class ApiService {
       return null;
     }
   }
+  static Future<bool> updateMember(int memberId, Map<String, dynamic> data) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/members/$memberId/'),
+            headers: _jsonHeaders(token),
+            body: jsonEncode(data),
+          )
+          .timeout(_timeout);
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<List<dynamic>> getSections() async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/sections/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) return data;
+        if (data is Map && data.containsKey('results')) return data['results'] as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<List<dynamic>> getZones() async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/zones/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) return data;
+        if (data is Map && data.containsKey('results')) return data['results'] as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<List<dynamic>> getLedgerAccounts() async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/finances/ledger-accounts/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) return data;
+        if (data is Map && data.containsKey('results')) return data['results'] as List<dynamic>;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<bool> createDonation(Map<String, dynamic> data) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/finances/donations/'),
+            headers: _jsonHeaders(token),
+            body: jsonEncode(data),
+          )
+          .timeout(_timeout);
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> renewMemberTerm(int memberId, {int years = 3}) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/members/$memberId/renew_term/'),
+            headers: _jsonHeaders(token),
+            body: jsonEncode({'years': years}),
+          )
+          .timeout(_timeout);
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> concludeMemberTerm(int memberId) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final token = await getToken();
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/members/$memberId/conclude_term/'),
+            headers: _jsonHeaders(token),
+          )
+          .timeout(_timeout);
+      return response.statusCode >= 200 && response.statusCode < 300;
+    } catch (_) {
+      return false;
+    }
+  }
 }

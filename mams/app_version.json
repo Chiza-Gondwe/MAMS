@@ -1,7 +1,6 @@
 {
   "version": "1.4.0",
   "build_number": 4,
-  "external_download_url": "https://github.com/Chiza-Gondwe/MAMS/releases/download/v1.4.0/MAMS_Mobile_Latest.apk",
-  "download_url": "https://github.com/Chiza-Gondwe/MAMS/releases/download/v1.4.0/MAMS_Mobile_Latest.apk",
+  "download_url": "https://mamszambia.pythonanywhere.com/api/download-app/",
   "release_notes": "Added Member Directory Editing & Role Management, Leadership Term Renewals, and Quick Treasury Contribution Recording."
 }

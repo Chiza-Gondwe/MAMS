@@ -72,25 +72,27 @@ def serve_react_index(request):
     return HttpResponse("MAMS API is running")
 
 def download_mobile_apk(request):
+    for name in ['MAMS_Mobile_Release.apk', 'MAMS_Mobile_Latest.apk']:
+        apk_file = settings.BASE_DIR / name
+        if apk_file.exists():
+            return FileResponse(
+                open(apk_file, 'rb'),
+                as_attachment=True,
+                filename='MAMS_Mobile.apk',
+                content_type='application/vnd.android.package-archive',
+            )
+
     version_file = settings.BASE_DIR / 'mams' / 'app_version.json'
     if version_file.exists():
         try:
             with open(version_file, 'r', encoding='utf-8') as f:
                 vdata = json.load(f)
-                release_url = vdata.get('external_download_url') or vdata.get('download_url')
+                release_url = vdata.get('external_download_url')
                 if release_url and str(release_url).startswith('http') and 'api/download-app' not in str(release_url):
                     return HttpResponseRedirect(release_url)
         except Exception:
             pass
 
-    apk_file = settings.BASE_DIR / 'MAMS_Mobile_Release.apk'
-    if apk_file.exists():
-        return FileResponse(
-            open(apk_file, 'rb'),
-            as_attachment=True,
-            filename='MAMS_Mobile.apk',
-            content_type='application/vnd.android.package-archive',
-        )
     return HttpResponse("MAMS Mobile APK not found on server.", status=404)
 
 def app_version_info(request):

@@ -261,11 +261,11 @@ class MemberViewSet(BaseMultiTenantViewSet):
             
         profile = self.request.user.member_profile
         
-        if profile.role in ['superadmin', 'admin', 'pta']:
+        if profile.role in ['superadmin', 'admin', 'treasurer', 'pta']:
             return queryset
-        elif profile.role == 'section_admin' and profile.section:
+        elif profile.role in ['section_admin', 'section_treasurer'] and profile.section:
             return queryset.filter(Q(section=profile.section) | Q(role__in=['superadmin', 'admin']))
-        elif profile.role == 'zone_admin' and profile.zone:
+        elif profile.role in ['zone_admin', 'zone_treasurer'] and profile.zone:
             return queryset.filter(Q(zone=profile.zone) | Q(role__in=['superadmin', 'admin']))
         elif profile.role == 'group_leader' and profile.ministries.exists():
             return queryset.filter(Q(ministries__in=profile.ministries.all()) | Q(role__in=['superadmin', 'admin'])).distinct()
@@ -435,6 +435,37 @@ class MemberViewSet(BaseMultiTenantViewSet):
         return Response({
             'message': f'Member {member.first_name} {member.last_name} approved successfully.',
             'member': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def renew_term(self, request, pk=None):
+        from datetime import date, timedelta
+        member = self.get_object()
+        years = int(request.data.get('years', 3))
+        today = date.today()
+        start = today
+        end = today + timedelta(days=years * 365)
+        
+        member.term_start_date = start
+        member.term_end_date = end
+        member.term_status = 'active'
+        member.save(update_fields=['term_start_date', 'term_end_date', 'term_status'])
+        
+        return Response({
+            'message': f'Term for {member.first_name} {member.last_name} renewed for {years} years (until {end}).',
+            'member': self.get_serializer(member).data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdmin])
+    def conclude_term(self, request, pk=None):
+        member = self.get_object()
+        member.role = 'member'
+        member.term_status = 'concluded'
+        member.save(update_fields=['role', 'term_status'])
+        
+        return Response({
+            'message': f'Leadership term concluded for {member.first_name} {member.last_name}. Reverted to Regular Member.',
+            'member': self.get_serializer(member).data
         }, status=status.HTTP_200_OK)
 
 from church_profile.models import Organization

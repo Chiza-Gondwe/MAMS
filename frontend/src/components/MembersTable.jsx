@@ -237,6 +237,26 @@ export default function MembersTable() {
         };
         if (searchedUser) payload.user = searchedUser.id;
       }
+
+      // Automatically compute term dates for leadership roles
+      if (['treasurer', 'zone_treasurer', 'section_treasurer', 'section_admin', 'zone_admin'].includes(formData.role)) {
+        let sDate = formData.term_start_date || new Date().toISOString().split('T')[0];
+        let eDate = formData.term_end_date;
+        if (!eDate && formData.term_duration && formData.term_duration !== 'none') {
+          const d = new Date(sDate);
+          d.setFullYear(d.getFullYear() + parseInt(formData.term_duration || 3));
+          eDate = d.toISOString().split('T')[0];
+        }
+        if (payload instanceof FormData) {
+          payload.append('term_start_date', sDate);
+          if (eDate) payload.append('term_end_date', eDate);
+          payload.append('term_status', 'active');
+        } else {
+          payload.term_start_date = sDate;
+          payload.term_end_date = eDate || null;
+          payload.term_status = 'active';
+        }
+      }
       
       await api.createMember(payload);
       await loadMembers();
@@ -289,6 +309,32 @@ export default function MembersTable() {
           address: formData.address || '',
         };
         if (formData.profile_picture === 'DELETE') payload.profile_picture = null;
+      }
+
+      // Leadership term updates
+      if (['treasurer', 'zone_treasurer', 'section_treasurer', 'section_admin', 'zone_admin'].includes(formData.role)) {
+        let sDate = formData.term_start_date || selectedMember.term_start_date || new Date().toISOString().split('T')[0];
+        let eDate = formData.term_end_date;
+        if (!eDate && formData.term_duration && formData.term_duration !== 'none') {
+          const d = new Date(sDate);
+          d.setFullYear(d.getFullYear() + parseInt(formData.term_duration || 3));
+          eDate = d.toISOString().split('T')[0];
+        }
+        if (payload instanceof FormData) {
+          payload.append('term_start_date', sDate);
+          if (eDate) payload.append('term_end_date', eDate);
+          payload.append('term_status', 'active');
+        } else {
+          payload.term_start_date = sDate;
+          payload.term_end_date = eDate || null;
+          payload.term_status = 'active';
+        }
+      } else if (formData.role === 'member') {
+        if (payload instanceof FormData) {
+          payload.append('term_status', 'none');
+        } else {
+          payload.term_status = 'none';
+        }
       }
       
       await api.updateMember(selectedMember.id, payload);
@@ -377,10 +423,35 @@ export default function MembersTable() {
       zone_id: member.zone || member.zone_id || '',
       address: member.address || '',
       ministries: member.ministries || [],
+      term_duration: member.term_end_date ? 'custom' : '3',
+      term_start_date: member.term_start_date || '',
+      term_end_date: member.term_end_date || '',
       profile_picture: null
     });
     setFormError('');
     setShowEditModal(true);
+  };
+
+  const handleRenewTerm = async (member, years = 3) => {
+    if (window.confirm(`Renew ${member.first_name} ${member.last_name}'s leadership term for ${years} years?`)) {
+      try {
+        await api.renewMemberTerm(member.id, years);
+        await loadMembers();
+      } catch (err) {
+        alert("Failed to renew term: " + (err.message || 'Error'));
+      }
+    }
+  };
+
+  const handleConcludeTerm = async (member) => {
+    if (window.confirm(`Conclude ${member.first_name} ${member.last_name}'s term and transition them to a Regular Member?`)) {
+      try {
+        await api.concludeMemberTerm(member.id);
+        await loadMembers();
+      } catch (err) {
+        alert("Failed to conclude term: " + (err.message || 'Error'));
+      }
+    }
   };
 
   const openDeleteModal = (member) => {
@@ -415,12 +486,17 @@ export default function MembersTable() {
       zone_id: '',
       address: '',
       ministries: [],
+      term_duration: '3',
+      term_start_date: '',
+      term_end_date: '',
       profile_picture: null
     });
     setEmailSearch('');
     setSearchedUser(null);
     setFormError('');
   };
+
+  const pendingTransitionMembers = members.filter(m => m.term_status === 'pending_transition' || m.term_status === 'expiring_soon');
 
   const filtered = members.filter(m => {
     const matchesSearch = `${m.first_name} ${m.last_name} ${m.email || ''}`.toLowerCase().includes(search.toLowerCase());
@@ -496,7 +572,32 @@ export default function MembersTable() {
           )}
         </div>
 
-        {/* Filters Toolbar */}
+        {/* Leadership Term Alerts */}
+      {isAdmin && pendingTransitionMembers.length > 0 && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 shadow-sm mb-4">
+          <div className="w-8 h-8 rounded-xl bg-amber-100 flex items-center justify-center text-amber-800 shrink-0 font-bold text-sm">
+            ⏳
+          </div>
+          <div className="flex-1">
+            <h4 className="text-sm font-bold text-amber-900">Leadership Term Transitions ({pendingTransitionMembers.length})</h4>
+            <p className="text-xs text-amber-700 mt-0.5">
+              The following leaders have concluded (or are about to conclude) their terms of office. You can renew their term or step them down:
+            </p>
+            <div className="flex flex-wrap gap-2 mt-2.5">
+              {pendingTransitionMembers.map(m => (
+                <span key={m.id} className="inline-flex items-center gap-2 px-2.5 py-1 bg-white border border-amber-200 rounded-lg text-xs font-medium text-slate-800 shadow-2xs">
+                  <span>{m.first_name} {m.last_name} ({m.role.replace('_', ' ')})</span>
+                  <button onClick={() => handleRenewTerm(m, 3)} className="text-sky-600 hover:text-sky-800 text-[11px] font-bold">Renew</button>
+                  <span className="text-slate-300">•</span>
+                  <button onClick={() => handleConcludeTerm(m)} className="text-amber-800 hover:text-red-600 text-[11px] font-semibold">Step Down</button>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filters Toolbar */}
         <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[240px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -514,8 +615,11 @@ export default function MembersTable() {
               <option value="member">Regular Member</option>
               {user?.org_type === 'PTA' && <option value="pta">PTA</option>}
               <option value="group_leader">Group Leader</option>
-              <option value="section_admin">{user?.org_type === 'PTA' ? 'Class Representative' : 'Section Leader'}</option>
-              <option value="zone_admin">{user?.org_type === 'PTA' ? 'Grade Representative' : 'Zone Leader'}</option>
+              <option value="section_admin">{user?.org_type === 'PTA' ? 'Class Representative' : 'Section Elder'}</option>
+              <option value="zone_admin">{user?.org_type === 'PTA' ? 'Grade Representative' : 'Zone Elder'}</option>
+              <option value="section_treasurer">{user?.org_type === 'PTA' ? 'Class Treasurer' : 'Section Treasurer'}</option>
+              <option value="zone_treasurer">{user?.org_type === 'PTA' ? 'Grade Treasurer' : 'Zone Treasurer'}</option>
+              <option value="treasurer">{user?.org_type === 'PTA' ? 'School/PTA Treasurer' : 'Church Treasurer'}</option>
               <option value="admin">Admin</option>
             </select>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="select-filter text-sm bg-slate-50/50 hover:bg-white border-slate-200 py-2 rounded-lg">
@@ -610,7 +714,45 @@ export default function MembersTable() {
                       </div>
                     </td>
                     <td className="py-3 px-2 text-sm text-slate-500 whitespace-nowrap">{member.email || '—'}</td>
-                    <td className="py-3 px-2 text-sm capitalize text-slate-600 whitespace-nowrap">{member.role === 'pta' ? 'PTA' : member.role === 'section_admin' ? 'Section Leader' : member.role === 'zone_admin' ? 'Zone Leader' : member.role || 'member'}</td>
+                    <td className="py-3 px-2 text-sm capitalize text-slate-600 whitespace-nowrap">{member.role === 'pta' ? 'PTA' : member.role === 'section_admin' ? (user?.org_type === 'PTA' ? 'Class Rep' : 'Section Elder') : member.role === 'zone_admin' ? (user?.org_type === 'PTA' ? 'Grade Head' : 'Zone Elder') : member.role === 'section_treasurer' ? (user?.org_type === 'PTA' ? 'Class Treasurer' : 'Section Treasurer') : member.role === 'zone_treasurer' ? (user?.org_type === 'PTA' ? 'Grade Treasurer' : 'Zone Treasurer') : member.role === 'treasurer' ? (user?.org_type === 'PTA' ? 'PTA Treasurer' : 'Church Treasurer') : member.role === 'group_leader' ? (user?.org_type === 'PTA' ? 'Committee Leader' : 'Group Leader') : member.role || 'member'}
+                      {member.term_status === 'pending_transition' && (
+                        <div className="mt-1 flex flex-col gap-1">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            Term Ended • Pending Transition
+                          </span>
+                          {isAdmin && (
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={() => handleRenewTerm(member, 3)}
+                                className="text-[10px] px-1.5 py-0.5 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded border border-sky-200 font-semibold"
+                                title="Renew for 3-year term after re-election"
+                              >
+                                Renew (3 Yrs)
+                              </button>
+                              <button 
+                                onClick={() => handleConcludeTerm(member)}
+                                className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded border border-slate-300 font-semibold"
+                                title="Conclude term and step down to Regular Member"
+                              >
+                                Step Down
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {member.term_status === 'expiring_soon' && (
+                        <div className="mt-0.5">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-800 border border-orange-200">
+                            Term Ends in {member.days_until_term_end}d
+                          </span>
+                        </div>
+                      )}
+                      {member.term_status === 'active' && member.term_end_date && (
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          Term until {member.term_end_date}
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 px-2">
                       <span className={`inline-block px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${
                         member.status === 'active' 
@@ -833,8 +975,11 @@ export default function MembersTable() {
                     <option value="member">{user?.org_type === 'PTA' ? 'Parent / Student' : 'Member'}</option>
                     {user?.org_type === 'PTA' && <option value="pta">PTA Official</option>}
                     <option value="group_leader">{user?.org_type === 'PTA' ? 'Committee Leader' : 'Group Leader'}</option>
-                    {user?.role !== 'section_admin' && <option value="section_admin">{user?.org_type === 'PTA' ? 'Class Teacher / Rep' : 'Section Leader'}</option>}
-                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">{user?.org_type === 'PTA' ? 'Grade Head' : 'Zone Leader'}</option>}
+                    {user?.role !== 'section_admin' && <option value="section_admin">{user?.org_type === 'PTA' ? 'Class Teacher / Rep' : 'Section Elder'}</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">{user?.org_type === 'PTA' ? 'Grade Head' : 'Zone Elder'}</option>}
+                    {user?.role !== 'section_admin' && <option value="section_treasurer">{user?.org_type === 'PTA' ? 'Class Treasurer' : 'Section Treasurer'}</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_treasurer">{user?.org_type === 'PTA' ? 'Grade Treasurer' : 'Zone Treasurer'}</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="treasurer">{user?.org_type === 'PTA' ? 'School/PTA Treasurer' : 'Church Treasurer'}</option>}
                     {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="admin">Admin</option>}
                   </select>
                 </div>
@@ -851,6 +996,37 @@ export default function MembersTable() {
                   </select>
                 </div>
               </div>
+
+              {['treasurer', 'zone_treasurer', 'section_treasurer', 'section_admin', 'zone_admin'].includes(formData.role) && (
+                <div className="p-3 bg-sky-50/70 rounded-xl border border-sky-100 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-semibold text-sky-900">
+                      Leadership Term Duration (UCZ Standard)
+                    </label>
+                    <span className="text-[10px] text-sky-600 font-semibold bg-sky-100 px-1.5 py-0.5 rounded">Default: 3 Years</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={formData.term_duration || '3'}
+                      onChange={e => setFormData({...formData, term_duration: e.target.value})}
+                      className="w-full px-2 py-1.5 border border-sky-200 bg-white rounded-md text-xs focus:outline-none focus:border-sky-400"
+                    >
+                      <option value="3">3 Years (UCZ Standard)</option>
+                      <option value="2">2 Years</option>
+                      <option value="1">1 Year</option>
+                      <option value="none">No Term Limit (Permanent)</option>
+                    </select>
+                    <input
+                      type="date"
+                      placeholder="Custom End Date"
+                      value={formData.term_end_date || ''}
+                      onChange={e => setFormData({...formData, term_end_date: e.target.value})}
+                      className="w-full px-2 py-1.5 border border-sky-200 bg-white rounded-md text-xs focus:outline-none focus:border-sky-400"
+                      title="Custom End Date (Optional)"
+                    />
+                  </div>
+                </div>
+              )}
 
               {ministries.length > 0 && (
                 <div>
@@ -1022,8 +1198,11 @@ export default function MembersTable() {
                     <option value="member">{user?.org_type === 'PTA' ? 'Parent / Student' : 'Member'}</option>
                     {user?.org_type === 'PTA' && <option value="pta">PTA Official</option>}
                     <option value="group_leader">{user?.org_type === 'PTA' ? 'Committee Leader' : 'Group Leader'}</option>
-                    {user?.role !== 'section_admin' && <option value="section_admin">{user?.org_type === 'PTA' ? 'Class Teacher / Rep' : 'Section Leader'}</option>}
-                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">{user?.org_type === 'PTA' ? 'Grade Head' : 'Zone Leader'}</option>}
+                    {user?.role !== 'section_admin' && <option value="section_admin">{user?.org_type === 'PTA' ? 'Class Teacher / Rep' : 'Section Elder'}</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_admin">{user?.org_type === 'PTA' ? 'Grade Head' : 'Zone Elder'}</option>}
+                    {user?.role !== 'section_admin' && <option value="section_treasurer">{user?.org_type === 'PTA' ? 'Class Treasurer' : 'Section Treasurer'}</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="zone_treasurer">{user?.org_type === 'PTA' ? 'Grade Treasurer' : 'Zone Treasurer'}</option>}
+                    {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="treasurer">{user?.org_type === 'PTA' ? 'School/PTA Treasurer' : 'Church Treasurer'}</option>}
                     {(user?.role === 'admin' || user?.role === 'superadmin') && <option value="admin">Admin</option>}
                   </select>
                 </div>
@@ -1040,6 +1219,37 @@ export default function MembersTable() {
                   </select>
                 </div>
               </div>
+
+              {['treasurer', 'zone_treasurer', 'section_treasurer', 'section_admin', 'zone_admin'].includes(formData.role) && (
+                <div className="p-3 bg-sky-50/70 rounded-xl border border-sky-100 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-semibold text-sky-900">
+                      Leadership Term Duration (UCZ Standard)
+                    </label>
+                    <span className="text-[10px] text-sky-600 font-semibold bg-sky-100 px-1.5 py-0.5 rounded">Default: 3 Years</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={formData.term_duration || '3'}
+                      onChange={e => setFormData({...formData, term_duration: e.target.value})}
+                      className="w-full px-2 py-1.5 border border-sky-200 bg-white rounded-md text-xs focus:outline-none focus:border-sky-400"
+                    >
+                      <option value="3">3 Years (UCZ Standard)</option>
+                      <option value="2">2 Years</option>
+                      <option value="1">1 Year</option>
+                      <option value="none">No Term Limit (Permanent)</option>
+                    </select>
+                    <input
+                      type="date"
+                      placeholder="Custom End Date"
+                      value={formData.term_end_date || ''}
+                      onChange={e => setFormData({...formData, term_end_date: e.target.value})}
+                      className="w-full px-2 py-1.5 border border-sky-200 bg-white rounded-md text-xs focus:outline-none focus:border-sky-400"
+                      title="Custom End Date (Optional)"
+                    />
+                  </div>
+                </div>
+              )}
 
               {ministries.length > 0 && (
                 <div>

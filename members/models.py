@@ -32,8 +32,11 @@ class Member(models.Model):
     ROLE_CHOICES = [
         ('superadmin', 'System Super-Admin'),
         ('admin', 'Tenant Organizational Admin'),
-        ('section_admin', 'Section Leader'),
-        ('zone_admin', 'Zone Leader'),
+        ('treasurer', 'Church Treasurer'),
+        ('zone_admin', 'Zone Elder'),
+        ('section_admin', 'Section Elder'),
+        ('zone_treasurer', 'Zone Treasurer'),
+        ('section_treasurer', 'Section Treasurer'),
         ('group_leader', 'Group/Choir Leader'),
         ('pta', 'PTA Member'),
         ('member', 'Regular Member'),
@@ -81,11 +84,62 @@ class Member(models.Model):
     date_joined = models.DateField(auto_now_add=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
+    # Leadership Term Fields (UCZ Standard & Organizational Terms)
+    TERM_STATUS_CHOICES = [
+        ('none', 'No Term Limit'),
+        ('active', 'Active In Office'),
+        ('expiring_soon', 'Expiring Soon (Within 14 Days)'),
+        ('pending_transition', 'Term Concluded (Pending Transition)'),
+        ('concluded', 'Term Concluded (Stepped Down)'),
+    ]
+    term_start_date = models.DateField(null=True, blank=True)
+    term_end_date = models.DateField(null=True, blank=True)
+    term_status = models.CharField(max_length=30, choices=TERM_STATUS_CHOICES, default='none')
+
     # Verification Fields
     is_verified = models.BooleanField(default=False)
     is_temporary_password = models.BooleanField(default=False)
     otp_code = models.CharField(max_length=6, blank=True, null=True)
     otp_created_at = models.DateTimeField(blank=True, null=True)
+
+    def check_and_update_term_status(self):
+        """Update term status based on term dates and 14-day transition grace period."""
+        if not self.term_end_date or self.role in ['member', 'superadmin', 'pta']:
+            if self.term_status != 'none':
+                self.term_status = 'none'
+                if self.pk:
+                    self.save(update_fields=['term_status'])
+            return self.term_status
+            
+        from datetime import date, timedelta
+        today = date.today()
+        grace_end = self.term_end_date + timedelta(days=14)
+        
+        if today > grace_end:
+            # 14-day transition expired: step down automatically to regular member
+            self.role = 'member'
+            self.term_status = 'concluded'
+            if self.pk:
+                self.save(update_fields=['role', 'term_status'])
+        elif today > self.term_end_date:
+            # Within 14-day transition period: allow duties while awaiting election results
+            if self.term_status != 'pending_transition':
+                self.term_status = 'pending_transition'
+                if self.pk:
+                    self.save(update_fields=['term_status'])
+        elif today >= self.term_end_date - timedelta(days=14):
+            # Within 14 days of ending: reminder status
+            if self.term_status != 'expiring_soon':
+                self.term_status = 'expiring_soon'
+                if self.pk:
+                    self.save(update_fields=['term_status'])
+        else:
+            if self.term_status != 'active':
+                self.term_status = 'active'
+                if self.pk:
+                    self.save(update_fields=['term_status'])
+                
+        return self.term_status
 
     def __str__(self):
         parts = [self.first_name, self.middle_name, self.last_name]
@@ -100,4 +154,4 @@ def delete_linked_user_on_member_delete(sender, instance, **kwargs):
     """Ensure that whenever a Member/Admin (or their entire Organization) is deleted,
     their linked auth_user account is also completely removed from the database."""
     if instance.user_id:
-        User.objects.filter(id=instance.user_id).delete()
+        User.objects.filter(id=instance.user_id).delete()

@@ -40,6 +40,8 @@ class MemberSerializer(serializers.ModelSerializer):
     ministries_details = MinistrySerializer(source='ministries', many=True, read_only=True)
     section_name = serializers.SerializerMethodField()
     zone_name = serializers.SerializerMethodField()
+    term_status_display = serializers.SerializerMethodField()
+    days_until_term_end = serializers.SerializerMethodField()
     
     class Meta:
         model = Member
@@ -50,6 +52,23 @@ class MemberSerializer(serializers.ModelSerializer):
 
     def get_zone_name(self, obj):
         return obj.zone.name if obj.zone else None
+
+    def get_term_status_display(self, obj):
+        status = obj.check_and_update_term_status()
+        labels = {
+            'none': 'No Term Limit',
+            'active': 'Active In Office',
+            'expiring_soon': 'Expiring Soon',
+            'pending_transition': 'Term Concluded (Pending Transition)',
+            'concluded': 'Term Concluded',
+        }
+        return labels.get(status, status)
+
+    def get_days_until_term_end(self, obj):
+        if not obj.term_end_date:
+            return None
+        from datetime import date
+        return (obj.term_end_date - date.today()).days
 
 from django.db import transaction
 

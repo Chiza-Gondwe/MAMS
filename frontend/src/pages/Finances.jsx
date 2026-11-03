@@ -5,7 +5,18 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Finances() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const isSuperOrAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+  const isChurchTreasurer = user?.role === 'treasurer';
+  const isZoneTreasurer = user?.role === 'zone_treasurer';
+  const isSectionTreasurer = user?.role === 'section_treasurer';
+  
+  // Can record contributions and view totals
+  const isFinanceOfficer = isSuperOrAdmin || isChurchTreasurer || isZoneTreasurer || isSectionTreasurer;
+  // Can create/delete categories and delete entries
+  const isFinanceAdmin = isSuperOrAdmin || isChurchTreasurer;
+  
+  // Backward compatibility alias for UI elements
+  const isAdmin = isFinanceOfficer;
   
   const [activeTab, setActiveTab] = useState('contributions');
   const [donations, setDonations] = useState([]);
@@ -40,17 +51,27 @@ export default function Finances() {
       const [donRes, ledRes, memRes] = await Promise.all([
         api.getDonations(),
         api.getLedgerAccounts(),
-        isAdmin ? api.getMembers() : Promise.resolve({ results: [] })
+        isFinanceOfficer ? api.getMembers() : Promise.resolve({ results: [] })
       ]);
       
       let allDonations = donRes.results || donRes || [];
-      if (!isAdmin) {
+      if (!isFinanceOfficer) {
         allDonations = allDonations.filter(d => d.member === user?.member_id || (d.member?.id && d.member.id === user?.member_id));
       }
       
+      let allMembers = memRes.results || memRes || [];
+      // Scope members for Section/Zone treasurers
+      if (isSectionTreasurer && (user?.section || user?.section_id)) {
+        const userSec = String(user.section || user.section_id);
+        allMembers = allMembers.filter(m => String(m.section?.id || m.section) === userSec);
+      } else if (isZoneTreasurer && (user?.zone || user?.zone_id)) {
+        const userZone = String(user.zone || user.zone_id);
+        allMembers = allMembers.filter(m => String(m.zone?.id || m.zone) === userZone);
+      }
+
       setDonations(allDonations);
       setLedgers(ledRes.results || ledRes || []);
-      setMembers(memRes.results || memRes || []);
+      setMembers(allMembers);
     } catch (err) {
       console.error("Failed to fetch finance data", err);
     } finally {
@@ -126,17 +147,23 @@ export default function Finances() {
     <div className="space-y-6 animate-fade-in-up">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">{isAdmin ? 'Finances & Contributions' : 'My Contributions'}</h1>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+            {isSectionTreasurer ? 'Section Finances & Contributions' : isZoneTreasurer ? 'Zone Finances & Contributions' : isFinanceOfficer ? 'Finances & Contributions' : 'My Contributions'}
+          </h1>
           <p className="text-sm text-slate-500 mt-1">{isAdmin ? 'Manage and view financial contribution records securely.' : 'View your personal giving history.'}</p>
         </div>
-        {isAdmin && (
+        {isFinanceOfficer && (
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setShowManageLedgersModal(true)} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
-              <Tags className="w-4 h-4 text-sky-600" /> Manage Categories
-            </button>
-            <button onClick={() => setShowLedgerModal(true)} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Add Category
-            </button>
+            {isFinanceAdmin && (
+              <>
+                <button onClick={() => setShowManageLedgersModal(true)} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+                  <Tags className="w-4 h-4 text-sky-600" /> Manage Categories
+                </button>
+                <button onClick={() => setShowLedgerModal(true)} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-xl text-sm font-semibold transition-all shadow-sm flex items-center gap-2">
+                  <Plus className="w-4 h-4" /> Add Category
+                </button>
+              </>
+            )}
             <button onClick={() => setShowAddModal(true)} className="px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-sm font-semibold transition-all shadow-sm shadow-indigo-200 flex items-center gap-2">
               <Plus className="w-4 h-4" /> Record Contribution
             </button>
@@ -213,7 +240,7 @@ export default function Finances() {
                 <th className="p-4 font-semibold">Category</th>
                 <th className="p-4 font-semibold">Amount</th>
                 <th className="p-4 font-semibold">Status</th>
-                {isAdmin && <th className="p-4 font-semibold text-right">Actions</th>}
+                {isFinanceAdmin && <th className="p-4 font-semibold text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -237,7 +264,7 @@ export default function Finances() {
                       <CheckCircle2 className="w-3 h-3" /> {donation.status}
                     </span>
                   </td>
-                  {isAdmin && (
+                  {isFinanceAdmin && (
                     <td className="p-4 text-right">
                       <button 
                         onClick={async () => {

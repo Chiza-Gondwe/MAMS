@@ -17,25 +17,32 @@ I built **MAMS (Membership Affiliation & Management System)** to solve that prob
 ## What It Actually Does
 
 ### 1. One Platform, Different Organisations (Multi-Tenant)
+
 When a **Church** logs in, the dashboard talks about *Sections*, *Fellowship Groups*, *Tithes*, *Offerings*, and *Sermons*.  
 When a **School PTA** or **Club** logs in on the exact same system, those labels automatically switch to *Grades*, *Classes*, *PTA Levies*, and *Committees*—while keeping every organisation's data completely separate.
 
 ### 2. QR Code Digital IDs & Fast Attendance
+
 Every member gets a digital membership card with their own unique QR code (both on the web portal and on their phone). During Sunday service, a section meeting, or a school event, leaders just open the camera scanner, scan a member's QR code, and their attendance is recorded in less than a second.
 
 ### 3. Works Even When the Internet Drops (Hybrid Offline Mobile App)
+
 Internet connectivity isn't always reliable during crowded events. I built the **Flutter Android app** so that once you log in, your profile, digital QR card, announcements, member list, and contribution history are saved locally on your phone.  
 If the network goes down:
+
 - You can still open the app and sign in offline.
 - Leaders can still scan QR codes at the door—check-ins are queued on the phone and automatically synced to the server the moment the connection comes back.
 
 ### 4. Interactive Member Map (Built for Zambian Neighbourhoods)
+
 Most street addresses in Lusaka, Kitwe, and Ndola don't show up properly on standard international address lookups. MAMS includes a custom Zambian neighbourhood geocoder covering over 45 residential areas (Kabwata, Woodlands, Chilenje, Roma, Chelston, Matero, Ibex Hill, etc.) paired with interactive Google Street Maps. Members can even drop a pin right on their house so leaders can plan home visitations easily.
 
 ### 5. Transparent Finances & Instant PDF/CSV Reports
+
 Treasurers and admins can log tithes, offerings, building funds, and project pledges, track progress bars against financial goals, and export clean PDF or CSV reports in one click. Members can check their own giving history on their phone anytime without having to ask the office.
 
 ### 6. Built-In Community Hub
+
 - **Targeted Announcements & Email Alerts:** Send notices to everyone or just a specific section/committee, with automatic Gmail email delivery.
 - **In-App Group Channels:** Dedicated chat channels for leadership, youth, choir, or sub-committees so official updates don't get lost in personal chats.
 - **Prayer Wall, Sermons & Polls:** Share audio/video sermon links, post prayer requests, and run digital polls for community decisions.
@@ -94,6 +101,7 @@ MAMS/
 > **Detailed Step-by-Step Guide & Troubleshooting:** See **[HOW_TO_RUN.md](HOW_TO_RUN.md)** for full instructions, common fixes, and how to run from a downloaded GitHub ZIP file.
 
 ### 1. Backend (Django API + Pre-built Web Portal)
+
 ```bash
 git clone https://github.com/Chiza-Gondwe/MAMS.git
 cd MAMS

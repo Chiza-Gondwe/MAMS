@@ -302,8 +302,8 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
                           DropdownMenuItem(value: 'all', child: Text('Everyone (Church & PTA)')),
                           DropdownMenuItem(value: 'members', child: Text('Church Members Only')),
                           DropdownMenuItem(value: 'leaders', child: Text('All Leaders')),
-                          DropdownMenuItem(value: 'section_admins', child: Text('Section Leaders Only')),
-                          DropdownMenuItem(value: 'zone_admins', child: Text('Zone Leaders Only')),
+                          DropdownMenuItem(value: 'section_admins', child: Text('Section Elders Only')),
+                          DropdownMenuItem(value: 'zone_admins', child: Text('Zone Elders Only')),
                           DropdownMenuItem(value: 'pta', child: Text('PTA Officials')),
                         ],
                         onChanged: (value) {

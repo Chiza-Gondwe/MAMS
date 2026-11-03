@@ -62,10 +62,16 @@ class _MembersScreenState extends State<MembersScreen> {
         return 'Church Admin';
       case 'superadmin':
         return 'Super Admin';
+      case 'treasurer':
+        return 'Church Treasurer';
+      case 'zone_treasurer':
+        return 'Zone Treasurer';
+      case 'section_treasurer':
+        return 'Section Treasurer';
       case 'section_admin':
-        return 'Section Leader';
+        return 'Section Elder';
       case 'zone_admin':
-        return 'Zone Leader';
+        return 'Zone Elder';
       case 'group_leader':
         return 'Ministry Leader';
       default:

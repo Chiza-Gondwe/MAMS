@@ -330,8 +330,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return 'Church Admin';
       case 'superadmin':
         return 'Super Admin';
+      case 'treasurer':
+        return 'Church Treasurer';
+      case 'zone_treasurer':
+        return 'Zone Treasurer';
+      case 'section_treasurer':
+        return 'Section Treasurer';
       case 'section_admin':
-        return 'Section Leader';
+        return 'Section Elder';
+      case 'zone_admin':
+        return 'Zone Elder';
       case 'group_leader':
         return 'Ministry Leader';
       default:

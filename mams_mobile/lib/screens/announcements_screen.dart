@@ -41,9 +41,9 @@ class AnnouncementsScreen extends StatefulWidget {
       case 'leaders':
         return 'Leaders';
       case 'section_admins':
-        return 'Section Leaders';
+        return 'Section Elders';
       case 'zone_admins':
-        return 'Zone Leaders';
+        return 'Zone Elders';
       case 'pta':
         return 'PTA Officials';
       default:

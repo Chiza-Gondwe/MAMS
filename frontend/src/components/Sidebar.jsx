@@ -47,28 +47,46 @@ export default function Sidebar({ isOpen = false, onClose = () => {} }) {
     return item;
   });
 
+  const isTreasurerOfficer = ['treasurer', 'zone_treasurer', 'section_treasurer'].includes(activeUser.role);
+  const isElderLeader = ['section_admin', 'zone_admin', 'group_leader'].includes(activeUser.role);
+
   if (isSuperadmin) {
     displayNavItems = superadminNavItems;
-  } else if (isMember && activeUser.role !== 'section_admin' && activeUser.role !== 'zone_admin' && activeUser.role !== 'group_leader') {
+  } else if (activeUser.role === 'treasurer') {
+    // Main Church Treasurer has high-level financial & member access
+    displayNavItems = displayNavItems.filter(item => 
+      ['/dashboard', '/dashboard/finances', '/dashboard/members', '/dashboard/analytics', '/dashboard/chat', '/dashboard/events', '/dashboard/announcements', '/dashboard/profile'].includes(item.path)
+    );
+  } else if (activeUser.role === 'section_treasurer' || activeUser.role === 'zone_treasurer') {
+    // Section & Zone Treasurers have scoped finance & member view
+    displayNavItems = [
+      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/dashboard/finances', label: activeUser.role === 'section_treasurer' ? 'Section Finances' : 'Zone Finances', icon: Banknote },
+      { path: '/dashboard/members', label: activeUser.role === 'section_treasurer' ? 'Section Members' : 'Zone Members', icon: Users },
+      { path: '/dashboard/chat', label: 'Group Chat', icon: MessageSquare },
+      { path: '/dashboard/events', label: 'Events & Meetings', icon: CalendarDays },
+      { path: '/dashboard/profile', label: 'My Profile', icon: Settings },
+    ];
+  } else if (isElderLeader) {
     displayNavItems = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { path: '/dashboard/chat', label: 'Group Chat', icon: MessageSquare },
-      { path: '/dashboard/members', label: 'Directory', icon: Users },
+      { path: '/dashboard/members', label: activeUser.role === 'section_admin' ? (orgType === 'PTA' ? 'Class Students' : 'Section Members') : (orgType === 'PTA' ? 'Grade Students' : 'Zone Members'), icon: Users },
       { path: '/dashboard/map', label: 'Member Map', icon: Map },
+      { path: '/dashboard/attendance', label: 'Attendance', icon: Calendar },
+      { path: '/dashboard/announcements', label: 'Announcements', icon: Megaphone },
       { path: '/dashboard/events', label: 'Events & Meetings', icon: CalendarDays },
       { path: '/dashboard/sermons', label: 'Sermons & Media', icon: Megaphone },
       { path: '/dashboard/prayer', label: 'Prayer Wall', icon: Users },
       { path: '/dashboard/finances', label: 'My Contributions', icon: Banknote },
       { path: '/dashboard/profile', label: 'My Profile', icon: Settings },
     ];
-  } else if (activeUser.role === 'section_admin' || activeUser.role === 'zone_admin' || activeUser.role === 'group_leader') {
+  } else if (isMember) {
     displayNavItems = [
       { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { path: '/dashboard/chat', label: 'Group Chat', icon: MessageSquare },
-      { path: '/dashboard/members', label: 'Members', icon: Users },
+      { path: '/dashboard/members', label: 'Directory', icon: Users },
       { path: '/dashboard/map', label: 'Member Map', icon: Map },
-      { path: '/dashboard/attendance', label: 'Attendance', icon: Calendar },
-      { path: '/dashboard/announcements', label: 'Announcements', icon: Megaphone },
       { path: '/dashboard/events', label: 'Events & Meetings', icon: CalendarDays },
       { path: '/dashboard/sermons', label: 'Sermons & Media', icon: Megaphone },
       { path: '/dashboard/prayer', label: 'Prayer Wall', icon: Users },

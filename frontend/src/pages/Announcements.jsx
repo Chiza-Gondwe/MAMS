@@ -376,7 +376,7 @@ export default function Announcements() {
                       </div>
                     )}
                   </div>
-                  {isAdmin && (
+                  {(isAdmin || isSectionLeader || isZoneLeader || isMinistryLeader) && (
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();

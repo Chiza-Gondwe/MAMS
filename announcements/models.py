@@ -41,3 +41,16 @@ class Announcement(models.Model):
 
     def __str__(self):
         return self.title
+
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+
+@receiver(post_delete, sender=Announcement)
+def cleanup_announcement_video(sender, instance, **kwargs):
+    """Automatically delete the underlying video file from disk when an announcement is deleted."""
+    if instance.video_file:
+        try:
+            instance.video_file.delete(save=False)
+        except Exception:
+            pass
+

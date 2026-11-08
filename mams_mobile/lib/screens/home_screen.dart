@@ -58,15 +58,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _checkForAppUpdate() async {
     final info = await ApiService.checkAppUpdate();
-    if (mounted && info['has_update'] == true) {
+    if (!mounted) return;
+    if (info['has_update'] == true) {
       final prefs = await SharedPreferences.getInstance();
       final dismissedBuild = prefs.getInt('dismissed_update_build') ?? 0;
       final latestBuild = info['latest_build'] is int ? info['latest_build'] as int : 3;
-      if (dismissedBuild < latestBuild) {
+      if (dismissedBuild < latestBuild && ApiService.currentBuildNumber < latestBuild) {
         setState(() {
           _updateInfo = info;
         });
+        return;
       }
+    }
+    if (_updateInfo != null) {
+      setState(() {
+        _updateInfo = null;
+      });
     }
   }
 

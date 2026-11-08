@@ -6,7 +6,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  static const _secureStorage = FlutterSecureStorage();
+  static const _secureStorage = FlutterSecureStorage(
+    aOptions: AndroidOptions(
+      resetOnError: true,
+      migrateOnAlgorithmChange: true,
+    ),
+  );
   // Default URL: Permanent Cloud Server (works 24/7 anywhere on Mobile Data or Wi-Fi)
   static const String defaultBaseUrl = 'https://mamszambia.pythonanywhere.com/api';
   static const Duration _timeout = Duration(seconds: 12);

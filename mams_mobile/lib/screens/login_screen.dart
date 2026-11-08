@@ -185,7 +185,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // Fallback: Check if we have a valid token (offline or network fallback)
+      // Fallback 1: Check if we have a valid token (offline or network fallback)
       final token = await ApiService.getToken();
       if (!mounted) return;
       if (token != null && token.isNotEmpty) {
@@ -193,12 +193,32 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Fallback 2: Offline / Cached User Identity
+      // Since biometric auth succeeded on this device, allow offline entry if user was previously logged in
+      final prefs = await SharedPreferences.getInstance();
+      final cachedToken = prefs.getString('access_token') ?? prefs.getString('offline_backup_token');
+      final hasCachedProfile = (prefs.getString('first_name') ?? '').isNotEmpty ||
+          (prefs.getString('username') ?? '').isNotEmpty ||
+          (prefs.getString('role') ?? '').isNotEmpty;
+
+      if (!mounted) return;
+      if (cachedToken != null && cachedToken.isNotEmpty && hasCachedProfile) {
+        ApiService.isOfflineMode = true;
+        Navigator.pushReplacementNamed(context, '/home');
+        return;
+      }
+
       if (mounted) {
+        setState(() {
+          _errorMessage =
+              'App was updated: please sign in with your password once to re-sync fingerprint unlock.';
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Session expired. Please sign in with your password to reconnect.',
+              'App was updated: please enter your password once to re-sync fingerprint.',
             ),
+            duration: Duration(seconds: 4),
           ),
         );
       }

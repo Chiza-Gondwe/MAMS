@@ -72,13 +72,13 @@ def serve_react_index(request):
     return HttpResponse("MAMS API is running")
 
 def download_mobile_apk(request):
-    for name in ['MAMS_Mobile_Release.apk', 'MAMS_Mobile_Latest.apk']:
+    for name in ['MAMS_Mobile_Latest.apk', 'MAMS_Mobile_Release.apk']:
         apk_file = settings.BASE_DIR / name
         if apk_file.exists():
             return FileResponse(
                 open(apk_file, 'rb'),
                 as_attachment=True,
-                filename='MAMS_Mobile.apk',
+                filename='MAMS_Mobile_v1.5.0.apk',
                 content_type='application/vnd.android.package-archive',
             )
 

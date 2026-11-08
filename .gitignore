@@ -2,7 +2,6 @@ venv/
 .env
 *.apk
 !MAMS_Mobile_Latest.apk
-!MAMS_Mobile_Release.apk
 __pycache__/
 *.pyc
 *.pyo

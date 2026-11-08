@@ -202,18 +202,26 @@ searchUserByEmail: async (email) => {
   // Announcements
   getAnnouncements: (search = '') => request(`/announcements/?search=${search}`),
   getAnnouncement: (id) => request(`/announcements/${id}/`),
-  createAnnouncement: (data) => request('/announcements/', { 
-    method: 'POST', 
-    body: JSON.stringify({
-      title: data.title,
-      content: data.content,
-      announcement_type: data.type || 'text',
-      audience: data.audience || 'all',
-      video_url: data.video_url || '',
-      target_section: data.target_section,
-      target_zone: data.target_zone
-    })
-  }),
+  createAnnouncement: (data) => {
+    if (data instanceof FormData) {
+      return request('/announcements/', {
+        method: 'POST',
+        body: data
+      });
+    }
+    return request('/announcements/', { 
+      method: 'POST', 
+      body: JSON.stringify({
+        title: data.title,
+        content: data.content,
+        announcement_type: data.type || data.announcement_type || 'text',
+        audience: data.audience || 'all',
+        video_url: data.video_url || '',
+        target_section: data.target_section,
+        target_zone: data.target_zone
+      })
+    });
+  },
   updateAnnouncement: (id, data) => request(`/announcements/${id}/`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteAnnouncement: (id) => request(`/announcements/${id}/`, { method: 'DELETE' }),
 

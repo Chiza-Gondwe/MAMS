@@ -11,7 +11,7 @@ class AnnouncementsScreen extends StatefulWidget {
 
   static String? extractVideoUrl(dynamic item) {
     if (item is! Map) return null;
-    final direct = (item['video_url'] ?? '').toString().trim();
+    final direct = (item['video_url'] ?? item['video_file_url'] ?? item['video_file'] ?? '').toString().trim();
     if (direct.isNotEmpty && direct.startsWith('http')) {
       return direct;
     }

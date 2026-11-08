@@ -15,18 +15,18 @@ class AnnouncementViewSet(BaseMultiTenantViewSet):
         profile = self.request.user.member_profile
         queryset = Announcement.objects.filter(organization=profile.organization).order_by('-created_at')
             
-        if profile.role == 'admin':
+        if profile.role in ['admin', 'superadmin', 'treasurer']:
             return queryset
             
         from django.db.models import Q
         
         allowed_audiences = ['all', 'members']
-        if profile.role in ['admin', 'section_admin', 'zone_admin', 'group_leader']:
+        if profile.role in ['admin', 'superadmin', 'section_admin', 'zone_admin', 'group_leader', 'treasurer', 'zone_treasurer', 'section_treasurer']:
             allowed_audiences.append('leaders')
             
-        if profile.role == 'section_admin':
+        if profile.role in ['section_admin', 'section_treasurer']:
             allowed_audiences.append('section_admins')
-        elif profile.role == 'zone_admin':
+        elif profile.role in ['zone_admin', 'zone_treasurer']:
             allowed_audiences.append('zone_admins')
         elif profile.role == 'pta':
             allowed_audiences.append('pta')
@@ -57,19 +57,16 @@ class AnnouncementViewSet(BaseMultiTenantViewSet):
             created_by=profile
         )
         
-        # Enforce scoping logic: If you are a lower leader, you can only announce to your specific domain
-        if profile.role == 'section_admin' and profile.section:
-            announcement.target_sections.add(profile.section)
-            # Remove any other targets they might have tried to spoof
+        # Enforce scoping logic: If you are a section or zone leader, you can only announce to your specific jurisdiction
+        if profile.role in ['section_admin', 'section_treasurer'] and profile.section:
+            announcement.target_sections.set([profile.section])
             announcement.target_zones.clear()
             announcement.target_ministries.clear()
-        elif profile.role == 'zone_admin' and profile.zone:
-            announcement.target_zones.add(profile.zone)
+        elif profile.role in ['zone_admin', 'zone_treasurer'] and profile.zone:
+            announcement.target_zones.set([profile.zone])
             announcement.target_sections.clear()
             announcement.target_ministries.clear()
         elif profile.role == 'group_leader':
-            # They must target at least one of their ministries, we just enforce they can't target outside their domain
-            # But the serializer will handle what they selected. Here we ensure they don't target sections/zones.
             announcement.target_sections.clear()
             announcement.target_zones.clear()
             
@@ -98,10 +95,7 @@ class AnnouncementViewSet(BaseMultiTenantViewSet):
                 except Exception:
                     pass
         except Exception as e:
-            print(f"Failed to send push notifications: {e}")
-
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['title', 'content', 'audience']
+            print(f"Error sending push: {e}")
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:

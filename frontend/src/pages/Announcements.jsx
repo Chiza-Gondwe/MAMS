@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { formatDate } from '../utils';
-import { Trash2, Plus, Search, X, Sparkles, Play, Video, ExternalLink } from 'lucide-react';
+import { Trash2, Plus, Search, X, Sparkles, Play, Video, ExternalLink, Camera, Square, Upload, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const getVideoDetails = (item) => {
   if (!item) return { url: null, embedUrl: null, isDirect: false };
-  let url = (item.video_url || '').trim();
+  let url = (item.video_url || item.video_file_url || item.video_file || '').trim();
   if (!url && item.content) {
     const match = item.content.match(/https?:\/\/[^\s]+/);
     if (match) {
@@ -23,7 +23,7 @@ export const getVideoDetails = (item) => {
     return { url, embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}`, isDirect: false };
   }
 
-  if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) {
+  if (url.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i) || url.includes('/media/announcements/')) {
     return { url, embedUrl: null, isDirect: true };
   }
 
@@ -34,13 +34,16 @@ export default function Announcements() {
   const [announcements, setAnnouncements] = useState([]);
   const [sections, setSections] = useState([]);
   const [zones, setZones] = useState([]);
-  const [search, setSearch] = useState('');
-  const [preview, setPreview] = useState(null);
+  const [ministries, setMinistries] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [preview, setPreview] = useState(null);
+  const [aiGenerating, setAiGenerating] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiTone, setAiTone] = useState('warm');
-  const [aiGenerating, setAiGenerating] = useState(false);
+  const { user } = useAuth();
+
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -51,32 +54,41 @@ export default function Announcements() {
     target_ministries: [],
     video_url: ''
   });
-  
-  const { user } = useAuth();
 
-  const [ministries, setMinistries] = useState([]);
+  // Video recording / upload state
+  const [videoMode, setVideoMode] = useState('record'); // 'record' | 'upload' | 'link'
+  const [videoFile, setVideoFile] = useState(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+
+  const videoLiveRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordedChunksRef = useRef([]);
+  const timerIntervalRef = useRef(null);
 
   const handleGenerateWithAI = async () => {
-    const topicText = aiPrompt.trim() || formData.title.trim() || formData.content.trim();
-    if (!topicText) {
-      alert('Enter a few words or topic first (e.g. "Youth choir practice Saturday 2pm")');
+    if (!aiPrompt.trim()) {
+      alert("Please provide a short prompt or brief notes for the AI drafter.");
       return;
     }
     setAiGenerating(true);
     try {
-      const res = await api.draftMessageWithAI({
-        prompt: topicText,
-        tone: aiTone,
-        audience: formData.audience,
-        message_type: 'announcement',
-      });
-      setFormData(prev => ({
-        ...prev,
-        title: res.title || prev.title,
-        content: res.content || prev.content,
-      }));
+      const res = await api.draftMessageWithAI(aiPrompt, aiTone, formData.audience);
+      if (res && res.title && res.content) {
+        setFormData(prev => ({
+          ...prev,
+          title: res.title,
+          content: res.content
+        }));
+      } else {
+        alert("Could not generate announcement draft. Please try again.");
+      }
     } catch (err) {
-      alert(err.message || 'Failed to generate with AI');
+      alert("AI drafter encountered an error: " + (err.message || "Failed to reach AI service."));
     } finally {
       setAiGenerating(false);
     }
@@ -100,19 +112,180 @@ export default function Announcements() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
   }, []);
+
+  // Cleanup camera stream when closing modal or unmounting
+  const stopCameraStream = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    setCameraActive(false);
+    setIsRecording(false);
+    setRecordingSeconds(0);
+  };
+
+  useEffect(() => {
+    if (!isModalOpen) {
+      stopCameraStream();
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+        setVideoPreviewUrl(null);
+      }
+      setVideoFile(null);
+    }
+  }, [isModalOpen]);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { max: 24 } },
+        audio: true
+      });
+      mediaStreamRef.current = stream;
+      if (videoLiveRef.current) {
+        videoLiveRef.current.srcObject = stream;
+        videoLiveRef.current.play();
+      }
+      setCameraActive(true);
+    } catch (err) {
+      console.error("Camera access error:", err);
+      setCameraError("Camera access denied or unavailable. You can upload an existing video instead.");
+    }
+  };
+
+  const startRecording = () => {
+    if (!mediaStreamRef.current) return;
+    recordedChunksRef.current = [];
+    try {
+      const options = { mimeType: 'video/webm;codecs=vp8,opus' };
+      let recorder;
+      if (MediaRecorder.isTypeSupported(options.mimeType)) {
+        recorder = new MediaRecorder(mediaStreamRef.current, options);
+      } else {
+        recorder = new MediaRecorder(mediaStreamRef.current);
+      }
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const file = new File([blob], `announcement_${Date.now()}.webm`, { type: 'video/webm' });
+        
+        // 20MB server storage guard
+        if (file.size > 20 * 1024 * 1024) {
+          alert("Recorded video exceeds 20MB. Please record a shorter message (under 60 seconds) to save server storage.");
+          return;
+        }
+
+        setVideoFile(file);
+        const url = URL.createObjectURL(blob);
+        setVideoPreviewUrl(url);
+        stopCameraStream();
+      };
+
+      recorder.start(1000); // 1s slices
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingSeconds(0);
+
+      // Max 90s countdown timer
+      timerIntervalRef.current = setInterval(() => {
+        setRecordingSeconds(sec => {
+          if (sec >= 89) {
+            stopRecording();
+            return 90;
+          }
+          return sec + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      console.error("Failed to start MediaRecorder:", err);
+      alert("Could not start recording. You can upload a recorded video file instead.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    setIsRecording(false);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Strict 20MB server limit
+    const sizeMb = file.size / (1024 * 1024);
+    if (sizeMb > 20) {
+      alert(`Video is ${sizeMb.toFixed(1)}MB. Maximum allowed is 20MB to save PythonAnywhere server storage. Please choose a smaller or trimmed clip.`);
+      e.target.value = '';
+      return;
+    }
+
+    setVideoFile(file);
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    setVideoPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const clearVideo = () => {
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    setVideoPreviewUrl(null);
+    setVideoFile(null);
+    stopCameraStream();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const payload = { ...formData };
-      
-      await api.createAnnouncement(payload);
+      if (formData.type === 'video' && videoFile) {
+        const payload = new FormData();
+        payload.append('title', formData.title.trim());
+        payload.append('content', formData.content.trim());
+        payload.append('announcement_type', 'video');
+        payload.append('audience', formData.audience);
+        if (formData.video_url.trim()) {
+          payload.append('video_url', formData.video_url.trim());
+        }
+        payload.append('video_file', videoFile);
+        formData.target_sections.forEach(id => payload.append('target_sections', id));
+        formData.target_zones.forEach(id => payload.append('target_zones', id));
+        formData.target_ministries.forEach(id => payload.append('target_ministries', id));
+
+        await api.createAnnouncement(payload);
+      } else {
+        const payload = { ...formData };
+        await api.createAnnouncement(payload);
+      }
+
       setIsModalOpen(false);
-      setFormData({ title: '', content: '', type: 'text', audience: 'all', target_sections: [], target_zones: [], target_ministries: [], video_url: '' });
+      clearVideo();
+      setFormData({
+        title: '',
+        content: '',
+        type: 'text',
+        audience: 'all',
+        target_sections: [],
+        target_zones: [],
+        target_ministries: [],
+        video_url: ''
+      });
       fetchData();
     } catch (err) {
       alert(err.message || 'Failed to create announcement');
@@ -120,6 +293,11 @@ export default function Announcements() {
       setLoading(false);
     }
   };
+
+  const isSectionLeader = ['section_admin', 'section_treasurer'].includes(user?.role);
+  const isZoneLeader = ['zone_admin', 'zone_treasurer'].includes(user?.role);
+  const isMinistryLeader = user?.role === 'group_leader';
+  const isAdmin = ['admin', 'superadmin', 'treasurer'].includes(user?.role);
 
   const filtered = announcements.filter(a => 
     a.title.toLowerCase().includes(search.toLowerCase()) || 
@@ -138,142 +316,124 @@ export default function Announcements() {
         <div className="flex gap-3 items-center">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search announcements..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg w-64 focus:outline-none focus:border-sky-400"
+            <input 
+              type="text" 
+              placeholder="Search announcements..." 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+              className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 bg-white" 
             />
           </div>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-1.5 py-2">
-            <Plus className="w-4 h-4" /> New announcement
-          </button>
+          {(isAdmin || isSectionLeader || isZoneLeader || isMinistryLeader) && (
+            <button 
+              onClick={() => setIsModalOpen(true)} 
+              className="btn-primary flex items-center gap-2 py-2 px-4 shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> New Announcement
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Announcements List */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         {filtered.length === 0 ? (
-          <div className="col-span-full py-12 text-center text-sm text-slate-400 bg-white rounded-xl border border-slate-200 shadow-sm">
-            No announcements found.
+          <div className="p-12 text-center text-slate-400 text-sm">
+            No announcements found matching your criteria.
           </div>
-        ) : filtered.map(ann => {
-          const v = getVideoDetails(ann);
-          const isVideo = ann.announcement_type === 'video' || Boolean(v.url);
-          return (
-            <div key={ann.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer flex flex-col" onClick={() => setPreview(ann)}>
-              <div className="p-5 flex-1">
-                <div className="flex justify-between items-start mb-3">
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                    isVideo ? 'bg-rose-100 text-rose-700 font-bold flex items-center gap-1' : 'bg-blue-100 text-blue-700'
-                  }`}>
-                    {isVideo && <Play className="w-3 h-3 fill-rose-600" />}
-                    {isVideo ? 'Video' : 'Text'}
-                  </span>
-                  <span className="text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full capitalize">
-                    {(ann.audience === 'all' || !ann.audience) ? 'All Members' : ann.audience}
-                  </span>
-                </div>
-                <h3 className="font-semibold text-slate-800 mb-2 line-clamp-1">{ann.title}</h3>
-                <p className="text-sm text-slate-500 line-clamp-2">{ann.content}</p>
-                {v.url && (
-                  <div className="mt-3">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 transition-colors">
-                      <Play className="w-3 h-3 fill-rose-600" /> Watch Video
-                    </span>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filtered.map(ann => {
+              const video = getVideoDetails(ann);
+              return (
+                <div 
+                  key={ann.id} 
+                  className="p-5 hover:bg-slate-50/60 transition-colors flex items-start justify-between gap-4 cursor-pointer"
+                  onClick={() => setPreview(ann)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        ann.announcement_type === 'video' 
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200' 
+                          : 'bg-sky-50 text-sky-700 border border-sky-200'
+                      }`}>
+                        {ann.announcement_type === 'video' ? <Video className="w-3 h-3" /> : null}
+                        {ann.announcement_type === 'video' ? 'Video Announcement' : 'Text Notice'}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 capitalize">
+                        {ann.audience || 'All'}
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        • {formatDate(ann.created_at)}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-semibold text-slate-800 mb-1">{ann.title}</h3>
+                    <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">{ann.content}</p>
+                    {video.url && (
+                      <div className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700">
+                        <Play className="w-3.5 h-3.5 fill-rose-600" /> Watch Video Clip
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <span className="text-xs text-slate-400">{formatDate(ann.created_at)}</span>
-                <button className="text-slate-400 hover:text-red-600 p-1.5 rounded-md hover:bg-slate-200 transition-colors" onClick={(e) => { e.stopPropagation(); api.deleteAnnouncement(ann.id).then(() => fetchData()); }}>
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
+                  {isAdmin && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm('Are you sure you want to delete this announcement?')) {
+                          api.deleteAnnouncement(ann.id).then(fetchData);
+                        }
+                      }}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                      title="Delete Announcement"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Preview Modal */}
       {preview && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setPreview(null)}>
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[88vh] flex flex-col overflow-hidden shadow-2xl border border-slate-100" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-start gap-3 px-6 py-4 border-b border-slate-100 shrink-0 bg-white">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-bold text-slate-800 leading-snug">{preview.title}</h3>
-                <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                  <span className="text-xs font-medium text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-md capitalize">
-                    Audience: {(preview.audience === 'all' || !preview.audience) ? 'All Members' : preview.audience}
-                  </span>
-                  <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
-                    {formatDate(preview.created_at)}
-                  </span>
-                </div>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50" onClick={() => setPreview(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100" onClick={e => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex justify-between items-start gap-4 mb-3">
+                <h3 className="text-lg font-bold text-slate-900">{preview.title}</h3>
+                <button onClick={() => setPreview(null)} className="text-slate-400 hover:text-slate-600 p-1">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setPreview(null)}
-                aria-label="Close announcement"
-                className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 p-1.5 rounded-lg transition-colors shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+              <p className="text-xs text-slate-400 mb-4">{formatDate(preview.created_at)}</p>
 
-            <div className="p-6 overflow-y-auto flex-1 space-y-4">
-              <p className="text-slate-600 leading-relaxed whitespace-pre-wrap text-sm">{preview.content}</p>
+              {/* Video Player */}
               {(() => {
                 const v = getVideoDetails(preview);
                 if (!v.url) return null;
                 return (
-                  <div className="space-y-3 pt-1">
-                    <div className="rounded-xl overflow-hidden bg-slate-900 aspect-video max-h-56 w-full flex items-center justify-center border border-slate-800 shadow-inner">
-                      {v.embedUrl ? (
-                        <iframe
-                          src={v.embedUrl}
-                          title={preview.title}
-                          className="w-full h-full border-0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
-                      ) : v.isDirect ? (
-                        <video src={v.url} controls className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="text-center p-4">
-                          <Video className="w-10 h-10 text-rose-400 mx-auto mb-1.5 opacity-80" />
-                          <p className="text-xs text-slate-300 font-medium">External Video Announcement</p>
-                        </div>
-                      )}
-                    </div>
+                  <div className="mb-4 rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center">
+                    {v.embedUrl ? (
+                      <iframe src={v.embedUrl} title={preview.title} className="w-full h-full border-0" allowFullScreen />
+                    ) : v.isDirect ? (
+                      <video src={v.url} controls autoPlay className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="text-center p-4 text-white">
+                        <Video className="w-8 h-8 mx-auto mb-2 text-rose-500" />
+                        <p className="text-xs">External Video Link</p>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
-            </div>
 
-            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
-              {(() => {
-                const v = getVideoDetails(preview);
-                if (!v.url) return null;
-                return (
-                  <a
-                    href={v.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 fill-white" /> Watch Video
-                    <ExternalLink className="w-3.5 h-3.5 text-rose-200" />
-                  </a>
-                );
-              })()}
-              <button
-                type="button"
-                onClick={() => setPreview(null)}
-                className="px-5 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Close / Cancel
-              </button>
+              <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{preview.content}</p>
+            </div>
+            <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button onClick={() => setPreview(null)} className="btn-secondary px-5 py-2 text-xs font-bold">Close</button>
             </div>
           </div>
         </div>
@@ -282,32 +442,52 @@ export default function Announcements() {
       {/* Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50" onClick={() => setIsModalOpen(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-100" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-100" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 shrink-0 bg-white">
               <div>
                 <h2 className="text-xl font-semibold text-slate-800">New Announcement</h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Publish an official {user?.org_type === 'PTA' ? 'school / PTA' : 'congregation'} announcement
+                  Publish an official communication to your members or congregation
                 </p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
               <div className="p-6 space-y-5 overflow-y-auto flex-1">
-                {/* AI Smart Announcement Drafter */}
+
+                {/* Leader Jurisdiction Scoping Banner */}
+                {isSectionLeader && (
+                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span><b>Section Scoped:</b> This announcement will be strictly delivered to members within your Section.</span>
+                  </div>
+                )}
+                {isZoneLeader && (
+                  <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-indigo-600" />
+                    <span><b>Zone Scoped:</b> This announcement will be strictly delivered to members within your Zone.</span>
+                  </div>
+                )}
+                {isMinistryLeader && (
+                  <div className="p-3 rounded-lg bg-teal-50 border border-teal-200 text-teal-800 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-teal-600" />
+                    <span><b>Ministry Scoped:</b> This announcement will be strictly delivered to members of your assigned ministries.</span>
+                  </div>
+                )}
+
+                {/* AI Drafter */}
                 <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                      AI Smart Announcement Drafter
+                      <Sparkles className="w-4 h-4 text-blue-600" /> AI Smart Drafter
                     </span>
                     <select
                       value={aiTone}
                       onChange={e => setAiTone(e.target.value)}
-                      className="text-xs px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-slate-700 font-medium focus:outline-none"
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-blue-200 bg-white text-slate-700 font-medium"
                     >
                       <option value="warm">Warm & Welcoming</option>
                       <option value="formal">Official & Formal</option>
@@ -319,7 +499,7 @@ export default function Announcements() {
                       type="text"
                       value={aiPrompt}
                       onChange={e => setAiPrompt(e.target.value)}
-                      placeholder={user?.org_type === 'PTA' ? 'Brief notes, e.g. PTA General Meeting Friday at 14:00 in Main Hall...' : 'Brief notes, e.g. Choir rehearsal Saturday at 14:00 in Main Sanctuary...'}
+                      placeholder="Brief notes, e.g. Choir rehearsal Saturday at 14:00 in Main Sanctuary..."
                       className="flex-1 px-3.5 py-2 bg-white border border-blue-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                     />
                     <button
@@ -334,121 +514,206 @@ export default function Announcements() {
                   </div>
                 </div>
 
+                {/* Title */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">Title</label>
                   <input
                     required
                     type="text"
-                    placeholder={user?.org_type === 'PTA' ? 'e.g. Term 3 PTA General Meeting Notice' : 'e.g. Sunday Service & Fellowship Notice'}
+                    placeholder="e.g. Section Fellowship Notice"
                     value={formData.title}
                     onChange={e => setFormData({...formData, title: e.target.value})}
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400"
                   />
                 </div>
-                
+
+                {/* Type & Audience */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Type</label>
-                    <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 bg-white">
-                      <option value="text">Text Announcement</option>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Announcement Format</label>
+                    <select 
+                      value={formData.type} 
+                      onChange={e => setFormData({...formData, type: e.target.value})} 
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 bg-white"
+                    >
+                      <option value="text">Standard Text Notice</option>
                       <option value="video">Video Announcement</option>
                     </select>
                   </div>
+
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Audience</label>
-                    <select value={formData.audience} onChange={e => setFormData({...formData, audience: e.target.value})} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 bg-white">
-                      {user?.role === 'admin' && <option value="all">Everyone {user?.org_type === 'PTA' ? '(Students & PTA)' : '(Entire Congregation)'}</option>}
-                      <option value="members">{user?.org_type === 'PTA' ? 'Parents & Students Only' : 'Church Members Only'}</option>
-                      {user?.role !== 'group_leader' && <option value="leaders">{user?.org_type === 'PTA' ? 'All Teachers / Officials' : 'All Leaders'}</option>}
-                      {user?.role === 'admin' || user?.role === 'section_admin' ? <option value="section_admins">{user?.org_type === 'PTA' ? 'Class Teachers Only' : 'Section Leaders Only'}</option> : null}
-                      {user?.role === 'admin' || user?.role === 'zone_admin' ? <option value="zone_admins">{user?.org_type === 'PTA' ? 'Grade Heads Only' : 'Zone Leaders Only'}</option> : null}
-                      {user?.role === 'admin' && user?.org_type === 'PTA' && <option value="pta">PTA Officials Only</option>}
+                    <select 
+                      value={formData.audience} 
+                      onChange={e => setFormData({...formData, audience: e.target.value})} 
+                      disabled={!isAdmin}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 bg-white disabled:bg-slate-50 disabled:text-slate-500"
+                    >
+                      {isAdmin && <option value="all">Everyone (Entire Congregation)</option>}
+                      <option value="members">Church Members Only</option>
+                      {!isMinistryLeader && <option value="leaders">All Leaders</option>}
+                      {(isAdmin || isSectionLeader) && <option value="section_admins">Section Elders Only</option>}
+                      {(isAdmin || isZoneLeader) && <option value="zone_admins">Zone Elders Only</option>}
                     </select>
                   </div>
                 </div>
 
-                {(user?.role === 'admin' || user?.role === 'superadmin') && (formData.audience === 'all' || formData.audience === 'members' || formData.audience === 'section_admins' || formData.audience === 'zone_admins') ? (
-                  <div className="space-y-3 pt-3 border-t border-slate-200">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                          Target {user?.org_type === 'PTA' ? 'Classes' : 'Sections'} (Optional)
-                        </label>
-                        <div className="p-2.5 border border-slate-200 rounded-lg bg-slate-50/70 max-h-32 overflow-y-auto space-y-1.5">
-                          {sections.length > 0 ? sections.map(s => (
-                            <label key={s.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:text-slate-900">
-                              <input type="checkbox" checked={formData.target_sections.includes(s.id)} onChange={(e) => {
-                                if (e.target.checked) setFormData({...formData, target_sections: [...formData.target_sections, s.id]});
-                                else setFormData({...formData, target_sections: formData.target_sections.filter(id => id !== s.id)});
-                              }} className="rounded text-sky-600 focus:ring-sky-500" />
-                              <span className="truncate">{s.name}</span>
-                            </label>
-                          )) : (
-                            <p className="text-xs text-slate-400 italic py-1">
-                              No {user?.org_type === 'PTA' ? 'classes' : 'sections'} created yet
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                          Target {user?.org_type === 'PTA' ? 'Grades' : 'Zones'} (Optional)
-                        </label>
-                        <div className="p-2.5 border border-slate-200 rounded-lg bg-slate-50/70 max-h-32 overflow-y-auto space-y-1.5">
-                          {zones.length > 0 ? zones.map(z => (
-                            <label key={z.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:text-slate-900">
-                              <input type="checkbox" checked={formData.target_zones.includes(z.id)} onChange={(e) => {
-                                if (e.target.checked) setFormData({...formData, target_zones: [...formData.target_zones, z.id]});
-                                else setFormData({...formData, target_zones: formData.target_zones.filter(id => id !== z.id)});
-                              }} className="rounded text-sky-600 focus:ring-sky-500" />
-                              <span className="truncate">{z.name}</span>
-                            </label>
-                          )) : (
-                            <p className="text-xs text-slate-400 italic py-1">
-                              No {user?.org_type === 'PTA' ? 'grades' : 'zones'} created yet
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
-                          Target {user?.org_type === 'PTA' ? 'Committees' : 'Ministries'} (Optional)
-                        </label>
-                        <div className="p-2.5 border border-slate-200 rounded-lg bg-slate-50/70 max-h-32 overflow-y-auto space-y-1.5">
-                          {ministries.length > 0 ? ministries.map(m => (
-                            <label key={m.id} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer hover:text-slate-900">
-                              <input type="checkbox" checked={formData.target_ministries.includes(m.id)} onChange={(e) => {
-                                if (e.target.checked) setFormData({...formData, target_ministries: [...formData.target_ministries, m.id]});
-                                else setFormData({...formData, target_ministries: formData.target_ministries.filter(id => id !== m.id)});
-                              }} className="rounded text-sky-600 focus:ring-sky-500" />
-                              <span className="truncate">{m.name}</span>
-                            </label>
-                          )) : (
-                            <p className="text-xs text-slate-400 italic py-1">
-                              No {user?.org_type === 'PTA' ? 'committees' : 'ministries'} created yet
-                            </p>
-                          )}
-                        </div>
+                {/* Video Capture & Options */}
+                {formData.type === 'video' && (
+                  <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/40 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-rose-800 flex items-center gap-1.5">
+                        <Video className="w-4 h-4 text-rose-600" /> Video Recording & Upload (Max 20MB)
+                      </span>
+                      <div className="flex gap-1 bg-white p-1 rounded-lg border border-rose-200 text-xs font-medium">
+                        <button
+                          type="button"
+                          onClick={() => { setVideoMode('record'); clearVideo(); }}
+                          className={`px-2.5 py-1 rounded-md transition-colors ${videoMode === 'record' ? 'bg-rose-600 text-white font-bold' : 'text-slate-600 hover:text-rose-600'}`}
+                        >
+                          Webcam
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setVideoMode('upload'); clearVideo(); }}
+                          className={`px-2.5 py-1 rounded-md transition-colors ${videoMode === 'upload' ? 'bg-rose-600 text-white font-bold' : 'text-slate-600 hover:text-rose-600'}`}
+                        >
+                          Upload File
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setVideoMode('link'); clearVideo(); }}
+                          className={`px-2.5 py-1 rounded-md transition-colors ${videoMode === 'link' ? 'bg-rose-600 text-white font-bold' : 'text-slate-600 hover:text-rose-600'}`}
+                        >
+                          Link
+                        </button>
                       </div>
                     </div>
-                  </div>
-                ) : null}
 
-                {formData.type === 'video' && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Video URL (e.g. YouTube link)</label>
-                    <input type="url" value={formData.video_url} onChange={e => setFormData({...formData, video_url: e.target.value})} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400" />
+                    {/* Mode 1: Webcam Recording */}
+                    {videoMode === 'record' && (
+                      <div className="space-y-3">
+                        {!cameraActive && !videoPreviewUrl && (
+                          <div className="text-center py-6 bg-white rounded-xl border border-dashed border-rose-200">
+                            <Camera className="w-10 h-10 text-rose-400 mx-auto mb-2" />
+                            <p className="text-xs font-medium text-slate-700 mb-3">Record directly with your laptop / device camera</p>
+                            <button
+                              type="button"
+                              onClick={startCamera}
+                              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-2 shadow-xs"
+                            >
+                              <Camera className="w-4 h-4" /> Turn On Camera
+                            </button>
+                            {cameraError && <p className="text-xs text-red-600 mt-2">{cameraError}</p>}
+                          </div>
+                        )}
+
+                        {cameraActive && (
+                          <div className="rounded-xl overflow-hidden bg-black aspect-video relative flex items-center justify-center">
+                            <video ref={videoLiveRef} muted playsInline className="w-full h-full object-cover" />
+                            {isRecording && (
+                              <div className="absolute top-3 right-3 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 animate-pulse">
+                                <span className="w-2 h-2 rounded-full bg-white"></span>
+                                {recordingSeconds}s / 90s max
+                              </div>
+                            )}
+                            <div className="absolute bottom-3 inset-x-0 flex justify-center gap-3">
+                              {!isRecording ? (
+                                <button
+                                  type="button"
+                                  onClick={startRecording}
+                                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full text-xs font-bold inline-flex items-center gap-2 shadow-lg"
+                                >
+                                  <div className="w-2.5 h-2.5 rounded-full bg-white"></div> Start Recording
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={stopRecording}
+                                  className="px-5 py-2 bg-slate-900/90 hover:bg-black text-white rounded-full text-xs font-bold inline-flex items-center gap-2 shadow-lg"
+                                >
+                                  <Square className="w-3.5 h-3.5 fill-white" /> Stop & Save Clip
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {videoPreviewUrl && (
+                          <div className="space-y-2">
+                            <div className="rounded-xl overflow-hidden bg-black aspect-video">
+                              <video src={videoPreviewUrl} controls className="w-full h-full object-contain" />
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200">
+                              <span className="flex items-center gap-1.5 font-medium text-emerald-700">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                Ready ({((videoFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={clearVideo}
+                                className="text-xs text-rose-600 hover:text-rose-700 font-bold inline-flex items-center gap-1"
+                              >
+                                <RefreshCw className="w-3 h-3" /> Retake
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Mode 2: File Upload */}
+                    {videoMode === 'upload' && (
+                      <div className="space-y-3">
+                        <div className="border border-dashed border-rose-300 rounded-xl p-6 text-center bg-white">
+                          <Upload className="w-8 h-8 text-rose-400 mx-auto mb-2" />
+                          <p className="text-xs font-medium text-slate-700 mb-1">Upload a video clip (MP4, WebM)</p>
+                          <p className="text-[11px] text-slate-400 mb-3">Maximum file size: 20MB (saves server disk space)</p>
+                          <input
+                            type="file"
+                            accept="video/mp4,video/webm,video/quicktime,video/*"
+                            onChange={handleFileUpload}
+                            className="text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100 cursor-pointer"
+                          />
+                        </div>
+
+                        {videoPreviewUrl && (
+                          <div className="space-y-2">
+                            <div className="rounded-xl overflow-hidden bg-black aspect-video max-h-52">
+                              <video src={videoPreviewUrl} controls className="w-full h-full object-contain" />
+                            </div>
+                            <div className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border border-slate-200">
+                              <span className="text-emerald-700 font-medium">Selected: {videoFile?.name} ({((videoFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB)</span>
+                              <button type="button" onClick={clearVideo} className="text-rose-600 font-bold text-xs">Remove</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Mode 3: External Link */}
+                    {videoMode === 'link' && (
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">YouTube / Vimeo / External Video URL</label>
+                        <input
+                          type="url"
+                          placeholder="https://youtube.com/watch?v=... or https://youtu.be/..."
+                          value={formData.video_url}
+                          onChange={e => setFormData({...formData, video_url: e.target.value})}
+                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:border-rose-400"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
+                {/* Content */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Announcement Content</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Announcement Content / Message</label>
                   <textarea
                     required
-                    rows="5"
-                    placeholder="Write your announcement message here, or use the AI Smart Drafter above..."
+                    rows="4"
+                    placeholder="Type the announcement details here..."
                     value={formData.content}
                     onChange={e => setFormData({...formData, content: e.target.value})}
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-sky-400 leading-relaxed"
@@ -456,9 +721,22 @@ export default function Announcements() {
                 </div>
               </div>
 
+              {/* Submit Buttons */}
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-white border border-slate-200 rounded-lg transition-colors">Cancel</button>
-                <button type="submit" disabled={loading} className="btn-primary py-2 px-6 disabled:opacity-70">{loading ? 'Publishing...' : 'Publish Announcement'}</button>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-white border border-slate-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || (formData.type === 'video' && !videoFile && !formData.video_url.trim())}
+                  className="btn-primary py-2 px-6 disabled:opacity-50"
+                >
+                  {loading ? 'Publishing...' : 'Publish Announcement'}
+                </button>
               </div>
             </form>
           </div>

@@ -1,6 +1,6 @@
 {
-  "version": "1.4.0",
-  "build_number": 4,
+  "version": "1.5.0",
+  "build_number": 5,
   "download_url": "https://mamszambia.pythonanywhere.com/api/download-app/",
-  "release_notes": "Added Member Directory Editing & Role Management, Leadership Term Renewals, and Quick Treasury Contribution Recording."
+  "release_notes": "Added direct camera video announcements, lightweight recording, and leader jurisdiction scoping."
 }

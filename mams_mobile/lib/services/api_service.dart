@@ -12,8 +12,8 @@ class ApiService {
   static const Duration _timeout = Duration(seconds: 12);
 
   /// Installed APK version & build number (checked against /api/app-version/)
-  static const String currentAppVersion = '1.4.0';
-  static const int currentBuildNumber = 4;
+  static const String currentAppVersion = '1.5.0';
+  static const int currentBuildNumber = 5;
 
   /// Tracks whether the app is currently operating on cached offline data
   static bool isOfflineMode = false;
@@ -665,10 +665,31 @@ class ApiService {
     String audience,
     String announcementType, [
     String? videoUrl,
+    String? videoFilePath,
   ]) async {
     try {
       final baseUrl = await getBaseUrl();
       final token = await getToken();
+
+      if (videoFilePath != null && videoFilePath.isNotEmpty) {
+        final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/announcements/'));
+        if (token != null) {
+          request.headers['Authorization'] = 'Bearer $token';
+        }
+        request.fields['title'] = title;
+        request.fields['content'] = content;
+        request.fields['audience'] = audience;
+        request.fields['announcement_type'] = announcementType;
+        if (videoUrl != null && videoUrl.trim().isNotEmpty) {
+          request.fields['video_url'] = videoUrl.trim();
+        }
+        request.files.add(
+          await http.MultipartFile.fromPath('video_file', videoFilePath),
+        );
+        final streamed = await request.send().timeout(const Duration(seconds: 90));
+        return streamed.statusCode == 201 || streamed.statusCode == 200;
+      }
+
       final Map<String, dynamic> body = {
         'title': title,
         'content': content,
@@ -685,7 +706,7 @@ class ApiService {
             body: jsonEncode(body),
           )
           .timeout(_timeout);
-      return response.statusCode == 201;
+      return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
       debugPrint('Error creating announcement: $e');
       return false;
